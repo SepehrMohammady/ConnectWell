@@ -1,0 +1,128 @@
+# ConnectWell
+
+Minimal private messenger by [ConnectWell](https://example.com) — text, file sharing,
+voice & video messages, and real-time audio/video calls, in any modern browser
+(Android, iOS, Windows, Linux, macOS).
+
+Live (unlisted): `https://example.com/connectwell/`
+
+## How access works
+
+- The app is **not linked from the website** — only people who receive the URL find it.
+- Anyone with the link can **register**, but new accounts are **pending** until the
+  admin approves them in the built-in admin panel.
+- The **first account ever created becomes the admin** and is active immediately.
+- Everything is person-to-person or group: chats, calls, and file sharing.
+
+## Features
+
+- **Chat** — 1:1 and group conversations, typing indicators, presence, unread
+  counts, delete-own-message, day separators, link detection.
+- **Files** — share images, video, audio, and documents up to 200 MB; images open
+  in a lightbox, media streams with seeking (HTTP Range).
+- **Voice & video messages** — recorded in the browser (MediaRecorder) and sent
+  like any other message.
+- **Calls** — 1:1 and group audio/video calls via WebRTC mesh with perfect
+  negotiation. Media flows peer-to-peer; the server only relays signaling.
+  STUN by default, optional TURN (coturn) via `.env`.
+- **Admin panel** — approve / block / unblock / delete members.
+
+## Stack
+
+One Node.js process, no build step, no frameworks on the client:
+
+- **Server**: Express 5 + `ws` + Node's built-in `node:sqlite` (zero native deps).
+- **Client**: vanilla ES modules, self-contained (no CDNs, system fonts, strict CSP).
+- **Storage**: SQLite (WAL) + uploads on disk under `data/` (gitignored).
+- Sessions: scrypt password hashes, hashed 90-day tokens, HttpOnly cookies.
+
+```
+server.js          entry point (static + API + WS wiring)
+lib/config.js      .env / defaults
+lib/db.js          schema + queries
+lib/api.js         REST API
+lib/files.js       upload / download streaming
+lib/ws.js          realtime hub + call signaling
+public/            the web app (index.html, app.css, js/*)
+deploy/            run/watchdog scripts + nginx snippet + sudo setup
+```
+
+## API / protocol overview
+
+REST under `api/`: `register`, `login`, `logout`, `me`, `bootstrap`, `users`,
+`conversations` (+ `/:id/messages`, `/read`, `/members`, `/upload`), `files/:id`,
+`messages/:id` (DELETE), `ice`, `admin/users` (+ approve/block/unblock/delete),
+`health`. State-changing requests require the `X-Requested-With: ConnectWell`
+header (CSRF defence in depth).
+
+WebSocket at `ws`: server pushes `hello`, `msg:new`, `msg:deleted`, `conv:new`,
+`conv:updated`, `conv:removed`, `presence`, `typing`, `user:pending`,
+`user:updated`, `call:state`, `call:ring`, `call:declined`, `call:ended`, `rtc`.
+Clients send `typing`, `call:start`, `call:join`, `call:leave`, `call:decline`,
+`rtc`. Calls are per-conversation rooms keyed by connection id, so multiple
+devices per user work.
+
+## Development
+
+```bash
+npm install
+npm start            # http://127.0.0.1:3010/connectwell/
+```
+
+Requires Node >= 22.5 (uses `node:sqlite`).
+
+## Deployment (IONOS VPS, no sudo needed for the app)
+
+The app lives at `~/apps/connectwell`, runs as the login user on
+`127.0.0.1:3010`, and nginx proxies `/connectwell/` to it.
+
+1. **User-space Node** (once): download the Node 24 linux-x64 tarball into
+   `~/opt/node`.
+2. **App**: `git clone` into `~/apps/connectwell`, `npm install --omit=dev`,
+   create `.env`:
+
+   ```ini
+   PROD=1
+   PORT=3010
+   PUBLIC_ORIGIN=https://example.com
+   # optional TURN (coturn):
+   # TURN_HOST=example.com
+   # TURN_SECRET=<same static-auth-secret as /etc/turnserver.conf>
+   ```
+
+3. **Keep it running** (crontab, no systemd needed):
+
+   ```cron
+   @reboot bash $HOME/apps/connectwell/deploy/watchdog.sh
+   * * * * * bash $HOME/apps/connectwell/deploy/watchdog.sh
+   ```
+
+4. **nginx** (the only sudo step, once):
+
+   ```bash
+   sudo bash ~/apps/connectwell/deploy/setup-server.sudo.sh
+   ```
+
+5. **Updates**: push to GitHub, then on the server
+   `cd ~/apps/connectwell && git pull && npm install --omit=dev` and
+   `pkill -f apps/connectwell/server.js` (the watchdog restarts it within a minute).
+
+### Optional TURN for reliable calls on strict networks
+
+STUN-only WebRTC fails on some mobile/CGNAT networks. Installing coturn fixes that:
+
+```bash
+sudo apt install coturn
+# /etc/turnserver.conf: use-static-auth-secret, static-auth-secret=<secret>,
+# realm=example.com, then enable + start the service and open ports
+# 3478/tcp+udp and the relay range in the firewall.
+```
+
+Set `TURN_HOST`/`TURN_SECRET` in `.env`; the app then hands out short-lived
+HMAC credentials at `api/ice`.
+
+## Author
+
+Sepehr Mohammady — <https://sepehrmohammady.com>
+
+MIT License.

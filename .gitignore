@@ -1,0 +1,11 @@
+# Runtime data — DB, uploads, logs live outside git
+data/
+node_modules/
+.env
+*.log
+error_log
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
