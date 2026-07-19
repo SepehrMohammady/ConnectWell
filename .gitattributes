@@ -1,0 +1,9 @@
+# Line-ending policy.
+#
+# Shell scripts MUST use LF: they execute on the Linux VPS, and CRLF makes
+# bash fail with "syntax error: unexpected end of file" (it reads `fi\r` as a
+# command rather than the keyword). `git archive` is the deploy transport and
+# applies these attributes, so this keeps deploys correct no matter what
+# core.autocrlf is set to on the machine doing the deploy.
+* text=auto eol=lf
+*.png binary
