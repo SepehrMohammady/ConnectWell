@@ -9,6 +9,10 @@ import {
 
 const MIC_SVG = 'M12 14c1.7 0 3-1.3 3-3V5c0-1.7-1.3-3-3-3S9 3.3 9 5v6c0 1.7 1.3 3 3 3zm5.3-3c0 3-2.5 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.4 2.7 6.2 6 6.7V21h2v-3.3c3.3-.5 6-3.3 6-6.7h-1.7z';
 const FILE_SVG = 'M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13z';
+const REACT_SVG = 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z';
+
+// Must match REACTIONS in lib/util.js exactly (the server rejects anything else).
+const REACTIONS = ['👍', '👎', '❤️', '😂', '😮', '😢', '🙏', '🎉', '😡', '👏'];
 
 function svgIcon(d) {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -248,8 +252,106 @@ function msgEl(m) {
             bubble.append(del);
         }
     }
-    row.append(bubble);
+
+    // bubble and its reaction chips share a column so the chips sit under it.
+    const col = h('div', { class: 'msg-col' });
+    col.append(bubble);
+    const reacts = reactionsEl(m);
+    if (reacts) col.append(reacts);
+    row.append(col);
+
+    if (!m.deleted) {
+        const rb = h('button', { class: 'msg-react-btn', title: t('chat.react'), type: 'button' });
+        rb.append(svgIcon(REACT_SVG));
+        rb.addEventListener('click', (e) => { e.stopPropagation(); openReactionPicker(rb, m); });
+        row.append(rb);
+    }
     return row;
+}
+
+/* ---------------- reactions ---------------- */
+
+function reactionsEl(m) {
+    if (m.deleted || !m.reactions || !m.reactions.length) return null;
+    const wrap = h('div', { class: 'msg-reacts' });
+    for (const r of m.reactions) {
+        const mineR = r.userIds.includes(S.me.id);
+        const chip = h('button', {
+            class: 'react-chip' + (mineR ? ' mine' : ''), type: 'button',
+            title: r.userIds.map((id) => userName(id)).slice(0, 12).join(', '),
+        });
+        chip.append(h('span', { class: 'rc-emoji', text: r.emoji }));
+        chip.append(h('span', { class: 'rc-count', text: String(r.userIds.length) }));
+        chip.addEventListener('click', () => toggleReaction(m, r.emoji));
+        wrap.append(chip);
+    }
+    return wrap;
+}
+
+// The server decides add vs remove from current state; the UI updates when the
+// resulting msg:reaction broadcast comes back (to this device too).
+async function toggleReaction(m, emoji) {
+    try { await api('api/messages/' + m.id + '/react', { method: 'POST', body: { emoji } }); }
+    catch (e) { toast(e.message); }
+}
+
+let pickerEl = null;
+function closeReactionPicker() {
+    if (!pickerEl) return;
+    pickerEl.remove();
+    pickerEl = null;
+    document.removeEventListener('click', onPickerOutside, true);
+    document.removeEventListener('keydown', onPickerKey, true);
+    window.removeEventListener('resize', closeReactionPicker);
+    $('msg-scroll')?.removeEventListener('scroll', closeReactionPicker);
+}
+function onPickerOutside(e) { if (pickerEl && !pickerEl.contains(e.target)) closeReactionPicker(); }
+function onPickerKey(e) { if (e.key === 'Escape') closeReactionPicker(); }
+
+function openReactionPicker(anchor, m) {
+    closeReactionPicker();
+    const p = h('div', { class: 'react-picker', role: 'menu' });
+    for (const emoji of REACTIONS) {
+        const b = h('button', { class: 'react-opt', type: 'button', text: emoji, title: emoji });
+        b.addEventListener('click', () => { closeReactionPicker(); toggleReaction(m, emoji); });
+        p.append(b);
+    }
+    document.body.append(p);
+    pickerEl = p;
+
+    // Position above the trigger, clamped to the viewport; flip below if cramped.
+    // Programmatic .style is fine under the CSP (that governs style attributes in
+    // markup, not the CSSOM).
+    const a = anchor.getBoundingClientRect();
+    let left = a.left + a.width / 2 - p.offsetWidth / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - p.offsetWidth - 8));
+    let top = a.top - p.offsetHeight - 8;
+    if (top < 8) top = a.bottom + 8;
+    p.style.left = Math.round(left) + 'px';
+    p.style.top = Math.round(top) + 'px';
+
+    // Defer, so the click that opened the picker does not immediately close it.
+    setTimeout(() => {
+        document.addEventListener('click', onPickerOutside, true);
+        document.addEventListener('keydown', onPickerKey, true);
+        window.addEventListener('resize', closeReactionPicker);
+        $('msg-scroll')?.addEventListener('scroll', closeReactionPicker, { passive: true });
+    }, 0);
+}
+
+// Update only the reaction chips, never the whole message — re-rendering the
+// bubble would restart a playing video or reload an image on every reaction.
+export function onMsgReaction(convId, messageId, reactions) {
+    const m = S.msgs.get(convId)?.list.find((x) => x.id === messageId);
+    if (m) m.reactions = reactions;
+    if (S.activeConvId !== convId || !m) return;
+    const col = document.querySelector('#msg-list [data-mid="' + messageId + '"] .msg-col');
+    if (!col) return;
+    const existing = col.querySelector('.msg-reacts');
+    const fresh = reactionsEl(m);
+    if (existing && fresh) existing.replaceWith(fresh);
+    else if (existing) existing.remove();
+    else if (fresh) col.append(fresh);
 }
 
 /* ---------------- incoming events ---------------- */

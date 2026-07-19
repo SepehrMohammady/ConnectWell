@@ -385,6 +385,55 @@ img, video { max-width: 100%; }
 @media (hover: none) { .msg-del { opacity: .7; } }
 .msg-del:hover { color: var(--danger); }
 
+/* ---------------- reactions ---------------- */
+
+.msg-col { display: flex; flex-direction: column; min-width: 0; }
+.msg-row.mine .msg-col { align-items: flex-end; }
+
+/* small "add reaction" affordance beside a message, revealed on hover */
+.msg-react-btn {
+    align-self: center; flex: none;
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--muted); opacity: 0;
+    transition: opacity .12s, background .12s, color .12s;
+}
+.msg-react-btn svg { width: 17px; height: 17px; fill: currentColor; }
+@media (hover: hover) {
+    .msg-row:hover .msg-react-btn { opacity: .65; }
+    .msg-react-btn:hover { opacity: 1; background: var(--panel-3); color: var(--text); }
+}
+@media (hover: none) { .msg-react-btn { opacity: .5; } }
+
+.msg-reacts { display: flex; flex-wrap: wrap; gap: .25rem; margin-top: .25rem; }
+.react-chip {
+    display: inline-flex; align-items: center; gap: .2rem;
+    padding: .08rem .42rem; border-radius: 999px;
+    background: var(--panel-2); border: 1px solid var(--border);
+    font-size: .82rem; line-height: 1.5;
+}
+.react-chip.mine { background: var(--accent-tint); border-color: var(--accent-deep); }
+.react-chip .rc-count { color: var(--muted); font-size: .72rem; font-weight: 600; }
+.react-chip.mine .rc-count { color: var(--accent); }
+@media (hover: hover) { .react-chip:hover { border-color: var(--accent-deep); } }
+
+.react-picker {
+    position: fixed; z-index: 85;
+    display: flex; flex-wrap: wrap; gap: .1rem;
+    max-width: min(360px, 92vw);
+    padding: .3rem; border-radius: 16px;
+    background: var(--panel); border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+}
+.react-opt {
+    width: 34px; height: 34px; border-radius: 50%;
+    font-size: 1.15rem; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+    transition: transform .1s, background .1s;
+}
+@media (hover: hover) { .react-opt:hover { background: var(--panel-2); transform: scale(1.25); } }
+.react-opt:active { transform: scale(1.1); }
+
 .upload-bubble .up-name { font-size: .85rem; margin-bottom: .3rem; }
 .progress { height: 4px; background: var(--track); border-radius: 2px; overflow: hidden; width: 200px; }
 .progress i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .2s; }

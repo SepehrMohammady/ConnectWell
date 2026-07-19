@@ -8,7 +8,7 @@ import {
 } from './core.js';
 import {
     initChat, openConv, closeConv, renderHeader, onMsgNew, onMsgDeleted, onTyping, markRead, reconcileActive,
-    sysText,
+    sysText, onMsgReaction,
 } from './chat.js';
 import {
     initCalls, onCallState, onCallRing, onCallDeclined, onCallEnded, onRtc, updateChip,
@@ -209,6 +209,7 @@ const EVENTS = {
         onMsgDeleted(d.convId, d.messageId);
         renderConvList();
     },
+    'msg:reaction'(d) { onMsgReaction(d.convId, d.messageId, d.reactions); },
     'conv:new'(d) {
         S.convs.set(d.conversation.id, d.conversation);
         renderConvList();

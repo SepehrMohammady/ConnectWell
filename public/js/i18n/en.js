@@ -115,6 +115,7 @@ export default {
     "chat.purged_title": "This file was removed to free storage space and cannot be recovered.",
     "chat.purged_video": "Video message",
     "chat.purged_voice": "Voice message",
+    "chat.react": "React",
     "chat.rec_unsupported": "Recording is not supported in this browser",
     "chat.rec_voice": "Recording voice message…",
     "chat.storage_note": "Shared files are removed automatically after a while to free space. Removal is permanent, so save anything you want to keep.",

@@ -48,6 +48,7 @@ const NEW_SINCE_BASELINE = {
     'app.lang.laterBusy': 'language switcher: deferred while a call or recording is live',
     'app.lang.notStored': 'language switcher: private mode cannot persist the choice',
     'app.profile.language': 'language switcher label',
+    'chat.react': 'reactions feature (0.7.0), added after the baseline',
 };
 
 const en = fs.readFileSync('public/js/i18n/en.js', 'utf8');
