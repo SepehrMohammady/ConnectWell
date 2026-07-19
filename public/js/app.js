@@ -57,15 +57,24 @@ const THEME_TITLE = {
     dark: 'Theme: dark',
 };
 
+// Shared so the header toggle and the profile selector never disagree.
+function paintThemeBtn() {
+    const btn = $('btn-theme');
+    if (!btn || !window.cwTheme) return;
+    const pref = window.cwTheme.preference();
+    btn.dataset.pref = pref;
+    btn.title = THEME_TITLE[pref];
+}
+
 function initTheme() {
     const btn = $('btn-theme');
     if (!btn || !window.cwTheme) return;
-    const paint = (pref) => { btn.dataset.pref = pref; btn.title = THEME_TITLE[pref]; };
-    paint(window.cwTheme.preference());
+    paintThemeBtn();
     btn.addEventListener('click', () => {
         const cur = window.cwTheme.preference();
         const next = THEME_CYCLE[(THEME_CYCLE.indexOf(cur) + 1) % THEME_CYCLE.length];
-        paint(window.cwTheme.set(next).preference);
+        window.cwTheme.set(next);
+        paintThemeBtn();
     });
 }
 
@@ -232,6 +241,14 @@ const EVENTS = {
     'call:declined'(d) { onCallDeclined(d); },
     'call:ended'(d) { onCallEnded(d); },
     rtc(d) { onRtc(d); },
+    // Someone renamed themselves; refresh wherever their name is shown.
+    'user:updated'(d) {
+        if (!d || !d.user) return;
+        if (S.me && d.user.id === S.me.id) { S.me = d.user; renderMe(); }
+        else S.users.set(d.user.id, d.user);
+        renderConvList();
+        renderHeader();
+    },
 };
 
 /* ---------------- sidebar ---------------- */
@@ -239,6 +256,8 @@ const EVENTS = {
 function renderMe() {
     const el = $('sb-me');
     el.textContent = '';
+    el.onclick = profileModal;          // the row itself opens the profile
+    el.title = 'Profile';
     el.append(avatarEl(S.me.displayName, { online: true }));
     el.append(h('div', {}, [
         h('div', { text: S.me.displayName }),
@@ -484,6 +503,90 @@ function convInfoModal() {
             },
         }));
         modal.append(r2);
+    });
+}
+
+/* ---------------- profile ---------------- */
+
+function profileModal() {
+    openModal((modal, close) => {
+        modal.append(h('h3', { text: 'Profile' }));
+
+        const note = h('p', { class: 'form-note', hidden: 'hidden' });
+        const say = (text, bad = false) => {
+            note.textContent = text;
+            note.className = 'form-note' + (bad ? ' bad' : ' ok');
+            note.hidden = false;
+        };
+        // Keeps a click from firing twice while the request is in flight.
+        const guard = (fn) => async (e) => {
+            const btn = e.currentTarget;
+            btn.disabled = true;
+            try { await fn(); } catch (err) { say(err.message, true); }
+            btn.disabled = false;
+        };
+
+        modal.append(h('div', { class: 'profile-head' }, [
+            avatarEl(S.me.displayName, { size: 'big' }),
+            h('div', {}, [
+                h('div', { class: 'u-name', text: S.me.displayName }),
+                h('div', { class: 'u-sub', text: '@' + S.me.username }),
+            ]),
+        ]));
+
+        /* display name */
+        modal.append(h('label', { class: 'field-label', text: 'Display name' }));
+        const nameInput = h('input', { type: 'text', value: S.me.displayName, maxlength: '50' });
+        modal.append(nameInput, h('button', {
+            class: 'btn small', type: 'button', text: 'Save name',
+            onclick: guard(async () => {
+                const { user } = await api('api/me', { method: 'PATCH', body: { displayName: nameInput.value } });
+                S.me = user;
+                renderMe();
+                renderConvList();
+                renderHeader();
+                say('Name updated.');
+            }),
+        }));
+
+        /* theme */
+        modal.append(h('label', { class: 'field-label', text: 'Theme' }));
+        const seg = h('div', { class: 'seg' });
+        const paintSeg = () => {
+            const cur = window.cwTheme ? window.cwTheme.preference() : 'system';
+            seg.textContent = '';
+            for (const [value, label] of [['system', 'Device'], ['light', 'Light'], ['dark', 'Dark']]) {
+                seg.append(h('button', {
+                    class: 'seg-opt' + (cur === value ? ' active' : ''), type: 'button', text: label,
+                    onclick: () => { window.cwTheme?.set(value); paintThemeBtn(); paintSeg(); },
+                }));
+            }
+        };
+        paintSeg();
+        modal.append(seg);
+
+        /* password */
+        modal.append(h('label', { class: 'field-label', text: 'Change password' }));
+        const curPw = h('input', { type: 'password', placeholder: 'Current password', autocomplete: 'current-password' });
+        const newPw = h('input', { type: 'password', placeholder: 'New password (min 8 characters)', autocomplete: 'new-password' });
+        modal.append(curPw, newPw, h('button', {
+            class: 'btn small', type: 'button', text: 'Update password',
+            onclick: guard(async () => {
+                await api('api/me/password', {
+                    method: 'POST',
+                    body: { currentPassword: curPw.value, newPassword: newPw.value },
+                });
+                curPw.value = '';
+                newPw.value = '';
+                say('Password updated. Your other devices were signed out.');
+            }),
+        }));
+
+        modal.append(note);
+        modal.append(h('div', { class: 'modal-row' }, [
+            h('div', { class: 'rec-spacer' }),
+            h('button', { class: 'btn small ghost', type: 'button', text: 'Close', onclick: close }),
+        ]));
     });
 }
 

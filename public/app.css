@@ -89,7 +89,9 @@ img, video { max-width: 100%; }
     border-radius: 999px; padding: .65rem 1.3rem;
     transition: filter .15s, transform .05s;
 }
-.btn:hover { filter: brightness(1.1); }
+/* Touch devices latch :hover after a tap, leaving controls looking permanently
+   selected, so every hover affordance is gated on a real pointer. */
+@media (hover: hover) { .btn:hover { filter: brightness(1.1); } }
 .btn:active { transform: scale(.97); }
 .btn.small { padding: .4rem .95rem; font-size: .88rem; }
 .btn.full { width: 100%; }
@@ -104,7 +106,7 @@ img, video { max-width: 100%; }
     transition: background .15s, color .15s;
     flex: none;
 }
-.icon-btn:hover { background: var(--panel-3); color: var(--text); }
+@media (hover: hover) { .icon-btn:hover { background: var(--panel-3); color: var(--text); } }
 .icon-btn svg { width: 21px; height: 21px; fill: currentColor; }
 .icon-btn.send { color: var(--accent); }
 .icon-btn.recording { color: var(--danger); background: var(--danger-tint); }
@@ -121,7 +123,7 @@ img, video { max-width: 100%; }
     background: var(--panel-3); color: var(--text);
     transition: filter .15s, transform .05s;
 }
-.round-btn:hover { filter: brightness(1.2); }
+@media (hover: hover) { .round-btn:hover { filter: brightness(1.2); } }
 .round-btn:active { transform: scale(.95); }
 .round-btn svg { width: 24px; height: 24px; fill: currentColor; }
 .round-btn.accept { background: var(--ok); color: var(--on-ok); }
@@ -221,7 +223,9 @@ img, video { max-width: 100%; }
     padding: .5rem 1rem .8rem;
     border-bottom: 1px solid var(--border);
     font-weight: 600;
+    cursor: pointer;                 /* opens the profile */
 }
+@media (hover: hover) { .sb-me:hover { background: var(--panel-2); } }
 .sb-me .uname { color: var(--muted); font-size: .82rem; font-weight: 400; }
 
 .sb-new { display: flex; gap: .5rem; padding: .8rem 1rem; }
@@ -246,7 +250,7 @@ img, video { max-width: 100%; }
     padding: .6rem .6rem; border-radius: 12px;
     transition: background .12s;
 }
-.conv-item:hover { background: var(--panel-2); }
+@media (hover: hover) { .conv-item:hover { background: var(--panel-2); } }
 .conv-item.active { background: var(--panel-3); }
 .conv-mid { flex: 1; min-width: 0; }
 .conv-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -282,7 +286,7 @@ img, video { max-width: 100%; }
     display: flex; align-items: center; gap: .7rem; min-width: 0; flex: 1;
     text-align: left; border-radius: 12px; padding: .25rem .5rem;
 }
-.chat-title-wrap:hover { background: var(--panel-2); }
+@media (hover: hover) { .chat-title-wrap:hover { background: var(--panel-2); } }
 .chat-title-txt { min-width: 0; }
 #chat-title { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #chat-sub { color: var(--muted); font-size: .8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -465,7 +469,7 @@ img, video { max-width: 100%; }
 }
 .modal h3 { margin-bottom: .9rem; }
 .modal-row { display: flex; align-items: center; gap: .6rem; margin-top: .9rem; }
-.modal input[type="text"], .modal input[type="search"] {
+.modal input[type="text"], .modal input[type="search"], .modal input[type="password"] {
     width: 100%; background: var(--panel-2); border: 1px solid var(--border);
     border-radius: 12px; padding: .65rem 1rem; outline: none; margin-bottom: .8rem;
 }
@@ -477,12 +481,34 @@ img, video { max-width: 100%; }
     display: flex; align-items: center; gap: .7rem; width: 100%;
     padding: .5rem .4rem; border-radius: 10px; text-align: left;
 }
-button.user-row:hover { background: var(--panel-2); }
+@media (hover: hover) { button.user-row:hover { background: var(--panel-2); } }
 .user-row .u-mid { flex: 1; min-width: 0; }
 .user-row .u-name { font-weight: 600; }
 .user-row .u-sub { color: var(--muted); font-size: .8rem; }
 .user-row .u-actions { display: flex; gap: .4rem; }
 .user-row input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); }
+
+/* ---------------- profile / form fields ---------------- */
+
+.profile-head { display: flex; align-items: center; gap: .9rem; margin-bottom: .4rem; }
+
+.field-label {
+    display: block; margin: 1.1rem 0 .45rem;
+    color: var(--muted); font-size: .74rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .05em;
+}
+
+/* segmented control (theme picker) */
+.seg { display: flex; background: var(--panel-2); border-radius: 12px; padding: 4px; }
+.seg-opt {
+    flex: 1; padding: .5rem; border-radius: 9px;
+    color: var(--muted); font-weight: 600; font-size: .9rem;
+}
+.seg-opt.active { background: var(--panel-3); color: var(--text); }
+
+.form-note { margin-top: .9rem; font-size: .85rem; }
+.form-note.ok { color: var(--ok); }
+.form-note.bad { color: var(--danger); }
 
 .admin-tabs { display: flex; gap: .4rem; margin-bottom: .8rem; flex-wrap: wrap; }
 .admin-tab {
