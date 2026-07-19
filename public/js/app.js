@@ -53,6 +53,73 @@ async function initFooter() {
     for (const el of document.querySelectorAll('.app-foot')) el.textContent = label;
 }
 
+/* ---------------- notifications ----------------
+   System notifications so a backgrounded tab still surfaces an incoming call or
+   message. The browser's own permission is the on/off switch — no second toggle
+   to disagree with it. Notifications only fire while the tab is hidden; a
+   visible tab already shows the ring banner and unread badges. */
+
+const NOTIF_HINT_KEY = 'cw_notif_hint';
+const callNotifs = new Map();   // callId -> Notification, closed on answer/end
+
+function notify(title, body, { tag, sticky = false, onclick } = {}) {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return null;
+    if (!document.hidden) return null;
+    try {
+        const n = new Notification(title, {
+            body, tag, icon: 'icon-192.png', requireInteraction: sticky,
+        });
+        n.onclick = () => {
+            try { window.focus(); } catch { /* some platforms refuse */ }
+            if (onclick) onclick();
+            n.close();
+        };
+        return n;
+    } catch { return null; }
+}
+
+function closeCallNotif(callId) {
+    const n = callNotifs.get(callId);
+    if (n) { n.close(); callNotifs.delete(callId); }
+}
+
+// One gentle pointer to the profile switch, once per device — a call ringing
+// into a hidden tab with notifications off is exactly the miss the owner wants
+// to prevent.
+function maybeNotifHint() {
+    try {
+        if (!('Notification' in window) || Notification.permission !== 'default') return;
+        if (localStorage.getItem(NOTIF_HINT_KEY)) return;
+        localStorage.setItem(NOTIF_HINT_KEY, '1');
+        toast(t('app.notif.hintToast'), 6000);
+    } catch { /* private mode */ }
+}
+
+function notifSection() {
+    const wrap = h('div', {});
+    const paint = () => {
+        wrap.textContent = '';
+        if (!('Notification' in window)) {
+            wrap.append(h('p', { class: 'field-hint', text: t('app.notif.unsupported') }));
+        } else if (Notification.permission === 'granted') {
+            wrap.append(h('p', { class: 'field-hint', text: t('app.notif.enabled') }));
+        } else if (Notification.permission === 'denied') {
+            wrap.append(h('p', { class: 'field-hint', text: t('app.notif.blocked') }));
+        } else {
+            wrap.append(h('p', { class: 'field-hint', text: t('app.notif.hint') }));
+            wrap.append(h('button', {
+                class: 'btn small', type: 'button', text: t('app.notif.enable'),
+                onclick: async () => {
+                    try { await Notification.requestPermission(); } catch { /* dismissed */ }
+                    paint();
+                },
+            }));
+        }
+    };
+    paint();
+    return wrap;
+}
+
 /* ---------------- theme ---------------- */
 
 // Cycles system -> light -> dark. The actual resolution lives in js/theme.js so
@@ -120,6 +187,7 @@ async function enterApp() {
     renderMe();
     renderConvList();
     connectWs();
+    maybeNotifHint();
 }
 
 function applyBootstrap(data) {
@@ -199,6 +267,12 @@ const EVENTS = {
             && (m.conversationId !== S.activeConvId || document.hidden)) {
             conv.unread = (conv.unread || 0) + 1;
             popSound();
+            // Tagged per conversation so a burst coalesces into one notification.
+            notify(conv.type === 'group' ? convTitle(conv) : userName(m.senderId),
+                previewText(conv), {
+                    tag: 'cw-msg-' + conv.id,
+                    onclick: () => openConv(conv.id),
+                });
         }
         onMsgNew(m);
         renderConvList();
@@ -254,10 +328,37 @@ const EVENTS = {
         renderConvList();
         if (S.activeConvId) renderHeader();
     },
-    'call:state'(d) { onCallState(d); },
-    'call:ring'(d) { onCallRing(d); },
-    'call:declined'(d) { onCallDeclined(d); },
-    'call:ended'(d) { onCallEnded(d); },
+    'call:state'(d) {
+        onCallState(d);
+        // Answered on this or another of my devices: the call notification is done.
+        if (callNotifs.has(d.callId) && d.participants.some((p) => p.userId === S.me.id)) {
+            closeCallNotif(d.callId);
+        }
+    },
+    'call:ring'(d) {
+        onCallRing(d);
+        const n = notify(userName(d.from),
+            t(d.kind === 'video' ? 'call.ring_sub_video' : 'call.ring_sub_voice'), {
+                tag: 'cw-call-' + d.callId, sticky: true,
+                onclick: () => openConv(d.convId),
+            });
+        if (n) {
+            callNotifs.set(d.callId, n);
+            // Mirror the in-app ring timeout so a sticky notification cannot
+            // outlive the ring itself.
+            setTimeout(() => closeCallNotif(d.callId), 45_000);
+        }
+    },
+    'call:declined'(d) {
+        onCallDeclined(d);
+        // My own decline comes back over the broadcast — clear the sticky call
+        // notification now rather than letting it sit until the 45s timeout.
+        if (d.userId === S.me.id) closeCallNotif(d.callId);
+    },
+    'call:ended'(d) {
+        onCallEnded(d);
+        closeCallNotif(d.callId);
+    },
     rtc(d) { onRtc(d); },
 };
 
@@ -771,6 +872,10 @@ function profileModal() {
         /* language */
         modal.append(h('label', { class: 'field-label', text: t('app.profile.language') }));
         modal.append(languageSeg(say));
+
+        /* notifications */
+        modal.append(h('label', { class: 'field-label', text: t('app.notif.label') }));
+        modal.append(notifSection());
 
         /* password */
         modal.append(h('label', { class: 'field-label', text: t('app.profile.changePassword') }));

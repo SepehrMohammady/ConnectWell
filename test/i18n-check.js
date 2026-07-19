@@ -49,6 +49,18 @@ const NEW_SINCE_BASELINE = {
     'app.lang.notStored': 'language switcher: private mode cannot persist the choice',
     'app.profile.language': 'language switcher label',
     'chat.react': 'reactions feature (0.7.0), added after the baseline',
+    'chat.forward': 'forward feature (0.8.0)',
+    'chat.fwd_from': 'forward feature (0.8.0)',
+    'chat.fwd_title': 'forward feature (0.8.0)',
+    'chat.fwd_done': 'forward feature (0.8.0)',
+    'chat.download': 'save-file feature (0.8.0)',
+    'app.notif.label': 'notifications (0.8.0)',
+    'app.notif.hint': 'notifications (0.8.0)',
+    'app.notif.enable': 'notifications (0.8.0)',
+    'app.notif.enabled': 'notifications (0.8.0)',
+    'app.notif.blocked': 'notifications (0.8.0)',
+    'app.notif.unsupported': 'notifications (0.8.0)',
+    'app.notif.hintToast': 'notifications (0.8.0)',
 };
 
 const en = fs.readFileSync('public/js/i18n/en.js', 'utf8');

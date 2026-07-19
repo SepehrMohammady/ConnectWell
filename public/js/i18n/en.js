@@ -116,6 +116,11 @@ export default {
     "chat.purged_video": "Video message",
     "chat.purged_voice": "Voice message",
     "chat.react": "React",
+    "chat.forward": "Forward",
+    "chat.fwd_from": "Forwarded from @{username}",
+    "chat.fwd_title": "Forward to…",
+    "chat.fwd_done": "Forwarded",
+    "chat.download": "Save",
     "chat.rec_unsupported": "Recording is not supported in this browser",
     "chat.rec_voice": "Recording voice message…",
     "chat.storage_note": "Shared files are removed automatically after a while to free space. Removal is permanent, so save anything you want to keep.",
@@ -153,6 +158,15 @@ export default {
     "app.lang.laterBusy": "Language will change when the call or recording ends.",
     "app.lang.notStored": "Your browser is not saving preferences, so this applies to this page only.",
     "app.profile.language": "Language",
+
+    /* Notifications: the browser permission is the switch. */
+    "app.notif.label": "Notifications",
+    "app.notif.hint": "Get notified about incoming calls and messages while ConnectWell is in the background.",
+    "app.notif.enable": "Enable notifications",
+    "app.notif.enabled": "Notifications are on.",
+    "app.notif.blocked": "Notifications are blocked for this site in your browser settings.",
+    "app.notif.unsupported": "This browser does not support notifications.",
+    "app.notif.hintToast": "Tip: enable notifications in your profile so you never miss a call.",
 
     /* Stored system events. The server also writes the English sentence to
        messages.content, so rows created before these keys existed still render,

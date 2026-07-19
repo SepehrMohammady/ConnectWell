@@ -10,13 +10,16 @@ import {
 const MIC_SVG = 'M12 14c1.7 0 3-1.3 3-3V5c0-1.7-1.3-3-3-3S9 3.3 9 5v6c0 1.7 1.3 3 3 3zm5.3-3c0 3-2.5 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.4 2.7 6.2 6 6.7V21h2v-3.3c3.3-.5 6-3.3 6-6.7h-1.7z';
 const FILE_SVG = 'M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13z';
 const REACT_SVG = 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z';
+const FWD_SVG = 'M14 9V5l7 7-7 7v-4.1c-5 0-8.5 1.6-11 5.1 1-5 4-10 11-11z';
+const DL_SVG = 'M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z';
 
 // Must match REACTIONS in lib/util.js exactly (the server rejects anything else).
 const REACTIONS = ['👍', '👎', '❤️', '😂', '😮', '😢', '🙏', '🎉', '😡', '👏'];
 
-function svgIcon(d) {
+function svgIcon(d, cls) {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('viewBox', '0 0 24 24');
+    if (cls) svg.setAttribute('class', cls);
     const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     p.setAttribute('d', d);
     svg.append(p);
@@ -175,7 +178,7 @@ function bubbleContent(m) {
             return linkify(m.content || '');
         case 'image': {
             const img = h('img', { class: 'msg-img', src, alt: m.fileName || t('chat.image_alt'), loading: 'lazy' });
-            img.addEventListener('click', () => showLightbox(src));
+            img.addEventListener('click', () => showLightbox(src, m.fileName));
             img.addEventListener('error', gone(img));
             return img;
         }
@@ -237,6 +240,16 @@ function msgEl(m) {
     if (!mine && conv?.type === 'group') {
         bubble.append(h('div', { class: 'sender', text: userName(m.senderId) }));
     }
+    // Original owner of a forwarded message, by unique username. Absent when the
+    // forwarder forwarded their own message.
+    if (!m.deleted && m.fwdFrom) {
+        // The username is isolated in a <bdi> so a Latin handle inside an RTL
+        // (Farsi) bubble does not reorder the '@' to the wrong side.
+        const tag = h('div', { class: 'fwd-tag', title: t('chat.fwd_from', { username: m.fwdFrom }) });
+        tag.append(document.createTextNode('↪ '));
+        tag.append(h('bdi', { text: '@' + m.fwdFrom }));
+        bubble.append(tag);
+    }
     if (m.deleted) {
         bubble.append(t('chat.msg_deleted'));
     } else {
@@ -258,14 +271,12 @@ function msgEl(m) {
     col.append(bubble);
     const reacts = reactionsEl(m);
     if (reacts) col.append(reacts);
-    row.append(col);
 
-    if (!m.deleted) {
-        const rb = h('button', { class: 'msg-react-btn', title: t('chat.react'), type: 'button' });
-        rb.append(svgIcon(REACT_SVG));
-        rb.addEventListener('click', (e) => { e.stopPropagation(); openReactionPicker(rb, m); });
-        row.append(rb);
-    }
+    const acts = m.deleted ? null : msgActions(m, mine);
+    // Own messages sit at the inline end, so their actions go on the inner side.
+    if (acts && mine) row.append(acts);
+    row.append(col);
+    if (acts && !mine) row.append(acts);
     return row;
 }
 
@@ -273,19 +284,86 @@ function msgEl(m) {
 
 function reactionsEl(m) {
     if (m.deleted || !m.reactions || !m.reactions.length) return null;
+    const conv = S.convs.get(m.conversationId);
+    const direct = conv?.type === 'direct';
+    const ownMsg = m.senderId === S.me.id;
     const wrap = h('div', { class: 'msg-reacts' });
     for (const r of m.reactions) {
         const mineR = r.userIds.includes(S.me.id);
         const chip = h('button', {
-            class: 'react-chip' + (mineR ? ' mine' : ''), type: 'button',
+            class: 'react-chip' + (mineR ? ' mine' : '') + (ownMsg ? ' static' : ''), type: 'button',
             title: r.userIds.map((id) => userName(id)).slice(0, 12).join(', '),
         });
         chip.append(h('span', { class: 'rc-emoji', text: r.emoji }));
-        chip.append(h('span', { class: 'rc-count', text: String(r.userIds.length) }));
-        chip.addEventListener('click', () => toggleReaction(m, r.emoji));
+        // In a direct chat only the other side can react, so the count is always
+        // one — showing it would be noise. Groups keep the number.
+        if (!direct) chip.append(h('span', { class: 'rc-count', text: String(r.userIds.length) }));
+        // The sender cannot react to their own message, so on own messages the
+        // chips are display-only.
+        if (!ownMsg) chip.addEventListener('click', () => toggleReaction(m, r.emoji));
         wrap.append(chip);
     }
     return wrap;
+}
+
+/* ---------------- per-message actions ---------------- */
+
+function msgActions(m, mine) {
+    const acts = h('div', { class: 'msg-acts' });
+    // Reacting is for the audience, never the sender.
+    if (!mine) {
+        const rb = h('button', { class: 'msg-act', title: t('chat.react'), type: 'button' });
+        rb.append(svgIcon(REACT_SVG));
+        rb.addEventListener('click', (e) => { e.stopPropagation(); openReactionPicker(rb, m); });
+        acts.append(rb);
+    }
+    // A purged message has nothing left to forward or save.
+    if (!m.purged) {
+        const fb = h('button', { class: 'msg-act', title: t('chat.forward'), type: 'button' });
+        fb.append(svgIcon(FWD_SVG, 'ic-dir'));      // directional glyph: mirrors under RTL
+        fb.addEventListener('click', (e) => { e.stopPropagation(); forwardModal(m); });
+        acts.append(fb);
+        if (m.fileSize != null) {
+            const dl = h('a', {
+                class: 'msg-act', title: t('chat.download'),
+                href: 'api/files/' + m.id, download: m.fileName || 'file',
+            });
+            dl.append(svgIcon(DL_SVG));
+            acts.append(dl);
+        }
+    }
+    return acts.children.length ? acts : null;
+}
+
+function forwardModal(m) {
+    // A small local modal on #modal-root; app.js's helper is not importable from
+    // here without creating a module cycle.
+    const root = $('modal-root');
+    root.textContent = '';
+    const modal = h('div', { class: 'modal' });
+    root.append(modal);
+    root.hidden = false;
+    const close = () => { root.hidden = true; root.textContent = ''; root.onclick = null; };
+    root.onclick = (e) => { if (e.target === root) close(); };
+
+    modal.append(h('h3', { text: t('chat.fwd_title') }));
+    const list = h('div', { class: 'list' });
+    modal.append(list);
+    const convs = [...S.convs.values()].sort((a, b) =>
+        (b.lastMessage?.createdAt || b.createdAt) - (a.lastMessage?.createdAt || a.createdAt));
+    for (const conv of convs) {
+        const row = h('button', { class: 'user-row', type: 'button' });
+        row.append(avatarEl(convTitle(conv), { group: conv.type === 'group', src: convAvatarSrc(conv) }));
+        row.append(h('div', { class: 'u-mid' }, [h('div', { class: 'u-name', text: convTitle(conv) })]));
+        row.addEventListener('click', async () => {
+            close();
+            try {
+                await api('api/messages/' + m.id + '/forward', { method: 'POST', body: { convId: conv.id } });
+                toast(t('chat.fwd_done'));
+            } catch (e) { toast(e.message); }
+        });
+        list.append(row);
+    }
 }
 
 // The server decides add vs remove from current state; the UI updates when the
@@ -701,10 +779,16 @@ function sendVideoMsg() {
 
 /* ---------------- lightbox ---------------- */
 
-function showLightbox(src) {
+function showLightbox(src, name) {
     const lb = $('lightbox');
     lb.textContent = '';
     lb.append(h('img', { src, alt: '' }));
+    // Save without leaving the viewer; stopPropagation so the click does not
+    // fall through to the backdrop dismiss.
+    const dl = h('a', { class: 'lightbox-dl', href: src, download: name || 'image', title: t('chat.download') });
+    dl.append(svgIcon(DL_SVG));
+    dl.addEventListener('click', (e) => e.stopPropagation());
+    lb.append(dl);
     lb.hidden = false;
 }
 
