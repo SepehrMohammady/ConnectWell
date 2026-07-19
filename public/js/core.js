@@ -1,7 +1,7 @@
 // Shared state, tiny DOM helpers, formatting, sounds. Imports only i18n.js,
 // which is a leaf and imports nothing back from here.
 
-import { t } from './i18n.js';
+import { t, locale } from './i18n.js';
 
 export const S = {
     me: null,
@@ -50,26 +50,53 @@ export function h(tag, props = {}, children = []) {
 
 /* ---------------- formatting ---------------- */
 
+/* The locale is resolved once before first paint and cannot change without a
+   reload, so the formatters are built once here rather than inside the render
+   loops — renderAll() formats every message in a conversation and
+   renderConvList() every row, and constructing an Intl formatter per iteration is
+   the one genuinely costly mistake available here.
+
+   For Farsi this produces the Persian calendar and Persian digits (۱۲۳) with no
+   special-casing: both follow from the locale tag. */
+const fmt = {
+    time: new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' }),
+    dayMonth: new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' }),
+    dayMonthYear: new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', year: 'numeric' }),
+    year: new Intl.DateTimeFormat(locale, { year: 'numeric' }),
+    int: new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }),
+    dec1: new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+    dec2: new Intl.NumberFormat(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+    // Pads using the locale's own zero, so a Persian duration reads ۰۵ rather
+    // than an ASCII 0 glued to a Persian 5.
+    pad2: new Intl.NumberFormat(locale, { minimumIntegerDigits: 2, useGrouping: false }),
+};
+
 export function fmtTime(ts) {
-    return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return fmt.time.format(ts);
 }
 
+// Correct for Jalali as-is: a Persian day begins at the same local midnight as a
+// Gregorian one, so comparing local year/month/date still identifies "same day".
 export function sameDay(a, b) {
     const x = new Date(a), y = new Date(b);
     return x.getFullYear() === y.getFullYear() && x.getMonth() === y.getMonth() && x.getDate() === y.getDate();
 }
 
 export function fmtDay(ts) {
-    const d = new Date(ts), now = new Date();
+    const now = new Date();
     if (sameDay(ts, now.getTime())) return t('core.day.today');
-    const yest = new Date(now); yest.setDate(now.getDate() - 1);
+    const yest = new Date(now); yest.setDate(now.getDate() - 1);   // DST-safe
     if (sameDay(ts, yest.getTime())) return t('core.day.yesterday');
-    return d.toLocaleDateString([], { day: 'numeric', month: 'short', year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined });
+    // Compare FORMATTED years, not getFullYear(): the Gregorian year rolls over
+    // in the middle of the Persian one, so the raw test would append the year for
+    // the wrong eleven weeks annually — and omit it when it is actually needed.
+    return fmt.year.format(ts) === fmt.year.format(now)
+        ? fmt.dayMonth.format(ts)
+        : fmt.dayMonthYear.format(ts);
 }
 
 export function fmtListTime(ts) {
-    return sameDay(ts, Date.now()) ? fmtTime(ts)
-        : new Date(ts).toLocaleDateString([], { day: 'numeric', month: 'short' });
+    return sameDay(ts, Date.now()) ? fmtTime(ts) : fmt.dayMonth.format(ts);
 }
 
 // The rounding stays here; only the number-plus-unit glue moves into the
@@ -77,22 +104,34 @@ export function fmtListTime(ts) {
 // The slot is `size`, not `n`: a numeric `n` would send t() down the
 // _one/_other branch, which these keys do not have.
 export function fmtSize(bytes) {
-    if (bytes < 1024) return t('core.size.b', { size: bytes });
-    if (bytes < 1024 * 1024) return t('core.size.kb', { size: (bytes / 1024).toFixed(0) });
-    if (bytes < 1024 * 1024 * 1024) return t('core.size.mb', { size: (bytes / 1024 / 1024).toFixed(1) });
-    return t('core.size.gb', { size: (bytes / 1024 / 1024 / 1024).toFixed(2) });
+    if (bytes < 1024) return t('core.size.b', { size: fmt.int.format(bytes) });
+    if (bytes < 1024 * 1024) return t('core.size.kb', { size: fmt.int.format(bytes / 1024) });
+    if (bytes < 1024 * 1024 * 1024) return t('core.size.mb', { size: fmt.dec1.format(bytes / 1048576) });
+    return t('core.size.gb', { size: fmt.dec2.format(bytes / 1073741824) });
 }
 
 export function fmtDur(sec) {
     sec = Math.round(sec || 0);
-    return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+    return fmt.int.format(Math.floor(sec / 60)) + ':' + fmt.pad2.format(sec % 60);
 }
 
 /* ---------------- avatars ---------------- */
 
 export function initials(name) {
-    const parts = String(name || '?').trim().split(/\s+/);
-    return (parts[0][0] + (parts[1]?.[0] || '')).toUpperCase();
+    // Strip bidi controls and zero-width characters first: a Persian name may
+    // legitimately contain them, and taking one as an "initial" renders a blank.
+    const clean = String(name || '')
+        // zero-width + bidi embedding/override/isolate controls
+        .replace(/[\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g, '')
+        .trim();
+    const parts = clean.split(/\s+/).filter(Boolean);
+    // A whitespace-only display name used to reach parts[0][0] === undefined and
+    // render the literal text "UNDEFINED" inside the avatar.
+    if (!parts.length) return '?';
+    // Array.from is code-point safe; [0] alone splits an astral character in half.
+    const first = Array.from(parts[0])[0] || '';
+    const second = parts[1] ? (Array.from(parts[1])[0] || '') : '';
+    return (first + second).toLocaleUpperCase(locale);
 }
 
 function hueFor(str) {

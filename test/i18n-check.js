@@ -33,6 +33,23 @@ const RECOMBINED = {
 // never appear as literals in client code. Their original English lives here too.
 const SERVER_FILES = ['lib/api.js'];
 
+// The "traces to the original English" check compares against the last commit
+// BEFORE the strings were extracted. HEAD is no longer usable for this: once the
+// extraction landed, the literals live in en.js rather than in the source.
+const BASELINE_REF = '26a6fb0';
+
+// Keys introduced after the baseline, which by definition have no earlier English
+// to trace to. Adding a key here is a deliberate act — it is the only way to
+// bypass the check, so keep the reason honest.
+const NEW_SINCE_BASELINE = {
+    'app.lang.device': 'language switcher, added with the Farsi release',
+    'app.lang.en': 'language switcher',
+    'app.lang.fa': 'language switcher',
+    'app.lang.laterBusy': 'language switcher: deferred while a call or recording is live',
+    'app.lang.notStored': 'language switcher: private mode cannot persist the choice',
+    'app.profile.language': 'language switcher label',
+};
+
 const en = fs.readFileSync('public/js/i18n/en.js', 'utf8');
 const dict = {};
 for (const m of en.matchAll(/^\s{4}"((?:[^"\\]|\\.)*)":\s*"((?:[^"\\]|\\.)*)",$/gm)) {
@@ -73,15 +90,17 @@ else ok('no unused keys');
    split across concatenated source lines still matches. */
 let original = '';
 for (const f of [...JS, ...SERVER_FILES, 'public/index.html']) {
-    try { original += cp.execSync('git show HEAD:' + f, { encoding: 'utf8', maxBuffer: 1 << 24 }); } catch { }
+    try { original += cp.execSync('git show ' + BASELINE_REF + ':' + f, { encoding: 'utf8', maxBuffer: 1 << 24 }); } catch { }
 }
 const squash = (s) => s.replace(/\s+/g, '');
 const originalSquashed = squash(original);
 
 const untraced = [];
 let recombinedCount = 0;
+let newCount = 0;
 for (const [key, val] of Object.entries(dict)) {
     if (key in RECOMBINED) { recombinedCount++; continue; }
+    if (key in NEW_SINCE_BASELINE) { newCount++; continue; }
     const parts = val.split(/\{\w+\}/).map((s) => s.trim()).filter((s) => s.length >= 4);
     if (!parts.length) continue;
     if (!parts.every((p) => originalSquashed.includes(squash(p)))) {
@@ -89,7 +108,41 @@ for (const [key, val] of Object.entries(dict)) {
     }
 }
 if (untraced.length) bad('every value traces to the original English', untraced.join('\n        '));
-else ok('every checkable value traces to the original English (' + recombinedCount + ' documented recombinations skipped)');
+else ok('every checkable value traces to the English at ' + BASELINE_REF
+    + ' (' + recombinedCount + ' recombinations, ' + newCount + ' new keys, both documented)');
+
+/* 2b — every translated dictionary must match English key-for-key and
+   slot-for-slot. A dropped slot renders a hole where a name should be. */
+const parseDict = (file) => {
+    const src = fs.readFileSync(file, 'utf8');
+    const d = {};
+    for (const m of src.matchAll(/^\s{4}"((?:[^"\\]|\\.)*)":\s*"((?:[^"\\]|\\.)*)",$/gm)) {
+        d[JSON.parse('"' + m[1] + '"')] = JSON.parse('"' + m[2] + '"');
+    }
+    return d;
+};
+const slotsOf = (v) => [...v.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join(',');
+
+for (const lang of ['fa']) {
+    const other = parseDict('public/js/i18n/' + lang + '.js');
+    if (!Object.keys(other).length) { console.log('  NOTE ' + lang + '.js is empty — English fallback applies'); continue; }
+
+    const missing = Object.keys(dict).filter((k) => !(k in other));
+    const extra = Object.keys(other).filter((k) => !(k in dict));
+    const slotBad = Object.keys(dict).filter((k) => k in other && slotsOf(dict[k]) !== slotsOf(other[k]))
+        .map((k) => k + ' en{' + slotsOf(dict[k]) + '} ' + lang + '{' + slotsOf(other[k]) + '}');
+    // Persian uses ک U+06A9 and ی U+06CC; the Arabic ك U+0643 / ي U+064A look
+    // almost identical but break search, sorting and some fonts.
+    const arabicForms = Object.entries(other).filter(([, v]) => /[كية]/.test(v)).map(([k]) => k);
+
+    if (missing.length) bad(lang + '.js covers every English key', missing.length + ' missing: ' + missing.join(', '));
+    else ok(lang + '.js covers all ' + Object.keys(dict).length + ' English keys');
+    if (extra.length) bad(lang + '.js has no keys English lacks', extra.join(', '));
+    if (slotBad.length) bad(lang + '.js preserves every slot', slotBad.join('\n        '));
+    else ok(lang + '.js preserves every {slot}');
+    if (arabicForms.length) bad(lang + '.js uses Persian letter forms', 'Arabic ك/ي/ة in: ' + arabicForms.join(', '));
+    else ok(lang + '.js uses Persian ک/ی throughout');
+}
 
 /* 3 — no t() at module scope */
 const modScope = [];

@@ -1,6 +1,6 @@
 {
   "name": "connectwell",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
   "description": "ConnectWell — minimal private messenger with audio/video calls, by ConnectWell",
   "author": "Sepehr Mohammady",
@@ -12,8 +12,8 @@
   "scripts": {
     "start": "node server.js",
     "test:i18n": "node test/i18n-check.js",
-    "test:smoke": "node test/smoke.mjs",
-    "test": "node test/i18n-check.js && node test/smoke.mjs"
+    "test:smoke": "node test/smoke.mjs && node test/smoke.mjs fa",
+    "test": "node test/i18n-check.js && node test/smoke.mjs && node test/smoke.mjs fa"
   },
   "dependencies": {
     "express": "^5.1.0",

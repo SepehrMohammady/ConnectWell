@@ -144,6 +144,15 @@ export default {
     "img.too_large": "That image is too large",
     "img.unreadable": "That image could not be read",
 
+    /* Language switcher. Each language is labelled in itself, so these two are
+       identical in every dictionary and are not really "translated". */
+    "app.lang.device": "Device",
+    "app.lang.en": "English",
+    "app.lang.fa": "فارسی",
+    "app.lang.laterBusy": "Language will change when the call or recording ends.",
+    "app.lang.notStored": "Your browser is not saving preferences, so this applies to this page only.",
+    "app.profile.language": "Language",
+
     /* Stored system events. The server also writes the English sentence to
        messages.content, so rows created before these keys existed still render,
        and so does any key a newer server introduces that this build lacks. */

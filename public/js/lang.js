@@ -9,12 +9,17 @@
 (function () {
     var KEY = 'cw_lang';
 
-    // Languages with a real dictionary behind them. Farsi joins this list in the
-    // release that ships public/js/i18n/fa.js — until then a fa device correctly
-    // resolves to English rather than getting an RTL layout with English text.
-    var SUPPORTED = { en: 'en' };
+    // Languages with a real dictionary behind them. A code only belongs here once
+    // public/js/i18n/<code>.js is actually populated — otherwise a matching device
+    // would get the layout and direction of a language it cannot read.
+    var SUPPORTED = { en: 'en', fa: 'fa' };
 
-    var LOCALE = { en: 'en', fa: 'fa-IR' };
+    // The lang attribute carries a plain language tag.
+    var LANG_TAG = { en: 'en', fa: 'fa-IR' };
+    // Intl gets the calendar stated explicitly. fa-IR already defaults to the
+    // Persian calendar in current engines, and its default numbering system
+    // gives Persian digits (۱۲۳); naming the calendar removes any doubt.
+    var INTL_TAG = { en: 'en', fa: 'fa-IR-u-ca-persian' };
 
     function saved() {
         try { return localStorage.getItem(KEY); } catch (e) { return null; }   // private mode
@@ -47,10 +52,10 @@
         var el = document.documentElement;
         // Real attributes, not dataset: :lang(), [dir=] and assistive technology
         // all key off these.
-        el.setAttribute('lang', LOCALE[code] || 'en');
+        el.setAttribute('lang', LANG_TAG[code] || 'en');
         el.setAttribute('dir', code === 'fa' ? 'rtl' : 'ltr');
         window.cwLang.code = code;
-        window.cwLang.locale = LOCALE[code] || 'en';
+        window.cwLang.locale = INTL_TAG[code] || 'en';
         window.cwLang.pref = pref;
         return code;
     }

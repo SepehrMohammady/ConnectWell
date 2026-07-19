@@ -556,6 +556,59 @@ function convInfoModal() {
     });
 }
 
+/* ---------------- language ---------------- */
+
+// Without a control before sign-in, a Farsi speaker on an English-configured
+// browser cannot reach Farsi at all — and the pending screen, where a new account
+// waits for approval, is exactly where they would be stuck.
+function initAuthLanguage() {
+    for (const card of document.querySelectorAll('.auth-card')) {
+        const foot = card.querySelector('.app-foot');
+        if (!foot) continue;
+        const seg = languageSeg((msg) => toast(msg));
+        seg.classList.add('seg-compact');
+        card.insertBefore(seg, foot);
+    }
+}
+
+// Changing language re-reads every string, so the page reloads. Two things must
+// not be swallowed: an active call or recording would be destroyed by the reload,
+// and in private mode the preference cannot be stored at all — reloading then
+// would silently return the user to the language they just left.
+function languageIsBusy() {
+    const shown = (id) => { const el = $(id); return el && !el.hidden; };
+    return shown('call-overlay') || shown('rec-bar') || shown('videomsg-modal');
+}
+
+function languageSeg(notify) {
+    const seg = h('div', { class: 'seg' });
+    const paint = () => {
+        const cur = window.cwLang ? window.cwLang.preference() : 'device';
+        seg.textContent = '';
+        // Each language is labelled in itself — a Persian speaker looking for
+        // Farsi should not have to read English to find it.
+        for (const [value, key] of [
+            ['device', 'app.lang.device'],
+            ['en', 'app.lang.en'],
+            ['fa', 'app.lang.fa'],
+        ]) {
+            seg.append(h('button', {
+                class: 'seg-opt' + (cur === value ? ' active' : ''), type: 'button', text: t(key),
+                onclick: () => {
+                    if (!window.cwLang) return;
+                    const stored = window.cwLang.set(value);
+                    paint();
+                    if (!stored) return notify(t('app.lang.notStored'), true);
+                    if (languageIsBusy()) return notify(t('app.lang.laterBusy'));
+                    location.reload();
+                },
+            }));
+        }
+    };
+    paint();
+    return seg;
+}
+
 /* ---------------- photo picker ---------------- */
 
 // Shared by the profile and group-info modals. The preview renders the OUTPUT
@@ -713,6 +766,10 @@ function profileModal() {
         };
         paintSeg();
         modal.append(seg);
+
+        /* language */
+        modal.append(h('label', { class: 'field-label', text: t('app.profile.language') }));
+        modal.append(languageSeg(say));
 
         /* password */
         modal.append(h('label', { class: 'field-label', text: t('app.profile.changePassword') }));
@@ -905,5 +962,6 @@ $('btn-pending-logout').addEventListener('click', async () => {
 
 applyStatic();
 initTheme();
+initAuthLanguage();
 initFooter();
 boot();
