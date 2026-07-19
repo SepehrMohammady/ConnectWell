@@ -205,6 +205,7 @@ export default {
     "ui.ring.accept": "پاسخ",
     "ui.ring.decline": "رد",
     "ui.sidebar.admin": "پنل مدیریت",
+    "ui.sidebar.install": "نصب برنامه",
     "ui.sidebar.convList": "گفت‌وگوها",
     "ui.sidebar.logout": "خروج",
     "ui.sidebar.newChat": "چت جدید",

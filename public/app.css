@@ -223,7 +223,10 @@ img, video { max-width: 100%; }
     display: flex; align-items: center; justify-content: space-between;
     padding: .9rem 1rem .6rem;
 }
-.sb-actions { display: flex; gap: .2rem; }
+.sb-actions { display: flex; gap: .2rem; flex: none; }
+/* let the brand text shrink so the action icons never overflow a narrow header */
+.sb-head .brand { min-width: 0; }
+.sb-head .brand span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .sb-me {
     display: flex; align-items: center; gap: .7rem;

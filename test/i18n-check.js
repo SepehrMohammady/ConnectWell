@@ -61,6 +61,7 @@ const NEW_SINCE_BASELINE = {
     'app.notif.blocked': 'notifications (0.8.0)',
     'app.notif.unsupported': 'notifications (0.8.0)',
     'app.notif.hintToast': 'notifications (0.8.0)',
+    'ui.sidebar.install': 'PWA install button (0.9.0)',
 };
 
 const en = fs.readFileSync('public/js/i18n/en.js', 'utf8');

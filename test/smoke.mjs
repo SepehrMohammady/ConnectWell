@@ -66,6 +66,9 @@ globalThis.WebSocket = function () { return { readyState: 0, close() { } }; };
 globalThis.URL.createObjectURL = () => 'blob:x';
 globalThis.URL.revokeObjectURL = () => { };
 globalThis.matchMedia = () => ({ matches: false, addEventListener() { }, addListener() { } });
+// A real window has these; the app registers beforeinstallprompt/appinstalled here.
+globalThis.addEventListener = () => { };
+globalThis.removeEventListener = () => { };
 globalThis.window = globalThis;
 globalThis.AudioContext = function () {
     return {

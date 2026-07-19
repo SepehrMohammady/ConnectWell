@@ -120,6 +120,58 @@ function notifSection() {
     return wrap;
 }
 
+/* ---------------- install (PWA) ----------------
+   Chromium fires beforeinstallprompt when the app is installable and not yet
+   installed; we stash it and offer our own button, which disappears once the
+   app is installed (appinstalled, and the event simply stops firing). Browsers
+   that do not support this — notably iOS Safari — never fire the event, so the
+   button stays hidden there, which is the intended "only where supported". */
+
+let deferredInstall = null;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredInstall = e;
+    paintInstallBtn();
+});
+window.addEventListener('appinstalled', () => {
+    deferredInstall = null;
+    paintInstallBtn();
+});
+
+function runningStandalone() {
+    return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+        || window.navigator.standalone === true;
+}
+
+function paintInstallBtn() {
+    const btn = $('btn-install');
+    if (btn) btn.hidden = !(deferredInstall && !runningStandalone());
+}
+
+function initInstall() {
+    // The service worker is what makes the app installable; without it the browser
+    // never offers install. A failure here is non-fatal — install just isn't shown.
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js').catch(() => { });
+    }
+    const btn = $('btn-install');
+    if (btn) {
+        btn.addEventListener('click', async () => {
+            if (!deferredInstall) return;
+            deferredInstall.prompt();
+            try { await deferredInstall.userChoice; } catch { /* dismissed */ }
+            // The stashed prompt is single-use, so drop it and hide the button.
+            // Chromium re-fires beforeinstallprompt on a later visit/reload if the
+            // app is still installable, which brings the button back then (not
+            // within this same page load).
+            deferredInstall = null;
+            paintInstallBtn();
+        });
+    }
+    paintInstallBtn();   // in case beforeinstallprompt fired before this ran
+}
+
 /* ---------------- theme ---------------- */
 
 // Cycles system -> light -> dark. The actual resolution lives in js/theme.js so
@@ -1069,5 +1121,6 @@ $('btn-pending-logout').addEventListener('click', async () => {
 applyStatic();
 initTheme();
 initAuthLanguage();
+initInstall();
 initFooter();
 boot();

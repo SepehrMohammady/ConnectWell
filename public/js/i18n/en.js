@@ -214,6 +214,7 @@ export default {
     "ui.ring.accept": "Accept",
     "ui.ring.decline": "Decline",
     "ui.sidebar.admin": "Admin panel",
+    "ui.sidebar.install": "Install app",
     "ui.sidebar.convList": "Conversations",
     "ui.sidebar.logout": "Sign out",
     "ui.sidebar.newChat": "New chat",
