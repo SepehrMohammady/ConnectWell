@@ -229,9 +229,15 @@ const EVENTS = {
             toast(d.user.displayName + ' registered and awaits approval');
         }
     },
+    // Someone was renamed, approved, blocked or deleted: refresh every place
+    // their identity is shown. S.me and S.users.get(S.me.id) are separate
+    // objects (both built from /bootstrap), so self updates must touch both or
+    // lookups through S.users keep returning the stale record.
     'user:updated'(d) {
+        if (!d || !d.user) return;
         const u = d.user;
-        if (u.status === 'active') S.users.set(u.id, u);
+        if (S.me && u.id === S.me.id) { S.me = u; S.users.set(u.id, u); renderMe(); }
+        else if (u.status === 'active') S.users.set(u.id, u);
         else S.users.delete(u.id);
         renderConvList();
         if (S.activeConvId) renderHeader();
@@ -241,14 +247,6 @@ const EVENTS = {
     'call:declined'(d) { onCallDeclined(d); },
     'call:ended'(d) { onCallEnded(d); },
     rtc(d) { onRtc(d); },
-    // Someone renamed themselves; refresh wherever their name is shown.
-    'user:updated'(d) {
-        if (!d || !d.user) return;
-        if (S.me && d.user.id === S.me.id) { S.me = d.user; renderMe(); }
-        else S.users.set(d.user.id, d.user);
-        renderConvList();
-        renderHeader();
-    },
 };
 
 /* ---------------- sidebar ---------------- */
