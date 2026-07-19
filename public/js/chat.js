@@ -14,7 +14,7 @@ const FWD_SVG = 'M14 9V5l7 7-7 7v-4.1c-5 0-8.5 1.6-11 5.1 1-5 4-10 11-11z';
 const DL_SVG = 'M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z';
 
 // Must match REACTIONS in lib/util.js exactly (the server rejects anything else).
-const REACTIONS = ['👍', '👎', '❤️', '😂', '😮', '😢', '🙏', '🎉', '😡', '👏'];
+const REACTIONS = ['👍', '👎', '❤️', '😂', '😢', '🙏', '👏', '🎉', '😮', '😡'];
 
 function svgIcon(d, cls) {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
