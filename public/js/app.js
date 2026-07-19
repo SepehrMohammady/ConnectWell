@@ -1,9 +1,10 @@
 // App orchestrator: boot, auth, WebSocket, sidebar, modals, admin panel.
 
-import { api } from './api.js';
+import { api, postBytes } from './api.js';
+import { makeAvatar } from './avatar.js';
 import {
     S, $, h, bus, net, toast, popSound, avatarEl, userName, convTitle, convOther,
-    fmtListTime,
+    fmtListTime, userAvatar, convAvatarSrc,
 } from './core.js';
 import {
     initChat, openConv, closeConv, renderHeader, onMsgNew, onMsgDeleted, onTyping, markRead, reconcileActive,
@@ -256,7 +257,7 @@ function renderMe() {
     el.textContent = '';
     el.onclick = profileModal;          // the row itself opens the profile
     el.title = 'Profile';
-    el.append(avatarEl(S.me.displayName, { online: true }));
+    el.append(avatarEl(S.me.displayName, { online: true, src: userAvatar(S.me) }));
     el.append(h('div', {}, [
         h('div', { text: S.me.displayName }),
         h('div', { class: 'uname', text: '@' + S.me.username }),
@@ -297,6 +298,7 @@ export function renderConvList() {
         item.append(avatarEl(title, {
             group: conv.type === 'group',
             online: conv.type === 'direct' ? S.online.has(other) : null,
+            src: convAvatarSrc(conv),
         }));
         item.append(h('div', { class: 'conv-mid' }, [
             h('div', { class: 'conv-name', text: title }),
@@ -341,7 +343,7 @@ function openModal(build) {
 
 function userRowBtn(u, onclick) {
     const row = h('button', { class: 'user-row', type: 'button', onclick });
-    row.append(avatarEl(u.displayName, { online: S.online.has(u.id) }));
+    row.append(avatarEl(u.displayName, { online: S.online.has(u.id), src: userAvatar(u) }));
     row.append(h('div', { class: 'u-mid' }, [
         h('div', { class: 'u-name', text: u.displayName }),
         h('div', { class: 'u-sub', text: '@' + u.username }),
@@ -391,7 +393,7 @@ function newGroupModal() {
             const cb = h('input', { type: 'checkbox' });
             cb.addEventListener('change', () => { cb.checked ? picked.add(u.id) : picked.delete(u.id); });
             const row = h('label', { class: 'user-row' });
-            row.append(cb, avatarEl(u.displayName), h('div', { class: 'u-mid' }, [
+            row.append(cb, avatarEl(u.displayName, { src: userAvatar(u) }), h('div', { class: 'u-mid' }, [
                 h('div', { class: 'u-name', text: u.displayName }),
                 h('div', { class: 'u-sub', text: '@' + u.username }),
             ]));
@@ -426,7 +428,9 @@ function convInfoModal() {
             const other = S.users.get(convOther(conv));
             modal.append(h('h3', { text: 'Chat details' }));
             const row = h('div', { class: 'user-row' });
-            row.append(avatarEl(other?.displayName || 'User', { online: other ? S.online.has(other.id) : false }));
+            row.append(avatarEl(other?.displayName || 'User', {
+                online: other ? S.online.has(other.id) : false, src: userAvatar(other),
+            }));
             row.append(h('div', { class: 'u-mid' }, [
                 h('div', { class: 'u-name', text: other?.displayName || 'Former member' }),
                 h('div', { class: 'u-sub', text: other ? '@' + other.username + (S.online.has(other.id) ? ' · online' : ' · offline') : '' }),
@@ -439,6 +443,24 @@ function convInfoModal() {
         modal.append(h('h3', { text: conv.name }));
 
         if (mayManage) {
+            // Same rule the server enforces: a photo is a group-identity change,
+            // so it follows the creator-or-admin rule that renaming already uses.
+            const picker = photoPicker({
+                src: convAvatarSrc(conv),
+                name: conv.name,
+                group: true,
+                notify: (msg, bad) => toast(msg),
+                // conv:updated arrives over the socket and refreshes S.convs, the
+                // list and the header, so nothing needs patching by hand here.
+                onSave: async (blob) => convAvatarSrc(
+                    (await postBytes('api/conversations/' + conv.id + '/avatar', blob)).conversation),
+                onRemove: async () => {
+                    await api('api/conversations/' + conv.id + '/avatar', { method: 'DELETE' });
+                },
+            });
+            modal.append(h('div', { class: 'profile-head' }, [picker.holder]));
+            modal.append(picker.actions);
+
             const name = h('input', { type: 'text', value: conv.name, maxlength: '50' });
             const save = h('button', {
                 class: 'btn small ghost', type: 'button', text: 'Rename',
@@ -458,7 +480,7 @@ function convInfoModal() {
         for (const uid of conv.members) {
             const u = uid === S.me.id ? S.me : S.users.get(uid);
             const row = h('div', { class: 'user-row' });
-            row.append(avatarEl(u?.displayName || 'User', { online: S.online.has(uid) }));
+            row.append(avatarEl(u?.displayName || 'User', { online: S.online.has(uid), src: userAvatar(u) }));
             row.append(h('div', { class: 'u-mid' }, [
                 h('div', { class: 'u-name', text: (u?.displayName || 'Former member') + (uid === conv.createdBy ? ' · creator' : '') }),
                 h('div', { class: 'u-sub', text: u ? '@' + u.username : '' }),
@@ -504,6 +526,80 @@ function convInfoModal() {
     });
 }
 
+/* ---------------- photo picker ---------------- */
+
+// Shared by the profile and group-info modals. The preview renders the OUTPUT
+// blob rather than the chosen file, so what you see is byte-identical to what
+// gets stored — which is what makes a bad crop or a sideways phone photo obvious
+// before it is saved.
+function photoPicker({ src, name, group = false, onSave, onRemove, notify }) {
+    let shownSrc = src;
+    let previewUrl = null;
+    let pending = null;
+
+    const holder = h('div', { class: 'photo-holder' });
+    const paint = () => {
+        holder.textContent = '';
+        holder.append(avatarEl(name, { size: 'big', group, src: previewUrl || shownSrc }));
+    };
+    const clearPreview = () => {
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+        previewUrl = null;
+    };
+    paint();
+
+    const input = h('input', { type: 'file', accept: 'image/*', hidden: 'hidden' });
+    input.addEventListener('change', async () => {
+        const file = input.files && input.files[0];
+        input.value = '';                       // so the same file can be chosen twice
+        if (!file) return;
+        try {
+            pending = await makeAvatar(file);
+            clearPreview();
+            previewUrl = URL.createObjectURL(pending);
+            paint();
+            notify('Preview ready — press Save photo to apply.');
+        } catch (err) { notify(err.message, true); }
+    });
+
+    const busy = (fn) => async (e) => {
+        const btn = e.currentTarget;
+        btn.disabled = true;
+        try { await fn(); } catch (err) { notify(err.message, true); }
+        btn.disabled = false;
+    };
+
+    const actions = h('div', { class: 'photo-actions' }, [
+        input,
+        h('button', { class: 'btn small ghost', type: 'button', text: 'Choose photo', onclick: () => input.click() }),
+        h('button', {
+            class: 'btn small', type: 'button', text: 'Save photo',
+            onclick: busy(async () => {
+                if (!pending) return notify('Choose a photo first.', true);
+                const next = await onSave(pending);
+                pending = null;
+                clearPreview();
+                shownSrc = next || null;
+                paint();
+                notify('Photo updated.');
+            }),
+        }),
+        h('button', {
+            class: 'btn small ghost', type: 'button', text: 'Remove',
+            onclick: busy(async () => {
+                await onRemove();
+                pending = null;
+                clearPreview();
+                shownSrc = null;
+                paint();
+                notify('Photo removed.');
+            }),
+        }),
+    ]);
+
+    return { holder, actions, dispose: clearPreview };
+}
+
 /* ---------------- profile ---------------- */
 
 function profileModal() {
@@ -524,13 +620,32 @@ function profileModal() {
             btn.disabled = false;
         };
 
+        // Both S.me and the S.users copy are refreshed: they are separate objects,
+        // and lookups elsewhere go through S.users.
+        const applyMe = (user) => {
+            S.me = user;
+            S.users.set(user.id, user);
+            renderMe();
+            renderConvList();
+            renderHeader();
+            return userAvatar(user);
+        };
+        const picker = photoPicker({
+            src: userAvatar(S.me),
+            name: S.me.displayName,
+            notify: say,
+            onSave: async (blob) => applyMe((await postBytes('api/me/avatar', blob)).user),
+            onRemove: async () => { applyMe((await api('api/me/avatar', { method: 'DELETE' })).user); },
+        });
+
         modal.append(h('div', { class: 'profile-head' }, [
-            avatarEl(S.me.displayName, { size: 'big' }),
+            picker.holder,
             h('div', {}, [
                 h('div', { class: 'u-name', text: S.me.displayName }),
                 h('div', { class: 'u-sub', text: '@' + S.me.username }),
             ]),
         ]));
+        modal.append(picker.actions);
 
         /* display name */
         modal.append(h('label', { class: 'field-label', text: 'Display name' }));
@@ -583,7 +698,10 @@ function profileModal() {
         modal.append(note);
         modal.append(h('div', { class: 'modal-row' }, [
             h('div', { class: 'rec-spacer' }),
-            h('button', { class: 'btn small ghost', type: 'button', text: 'Close', onclick: close }),
+            h('button', {
+                class: 'btn small ghost', type: 'button', text: 'Close',
+                onclick: () => { picker.dispose(); close(); },
+            }),
         ]));
     });
 }
@@ -630,7 +748,9 @@ async function adminModal() {
             if (rows.length === 0) list.append(h('p', { class: 'muted', text: 'Nobody here.' }));
             for (const u of rows) {
                 const row = h('div', { class: 'user-row' });
-                row.append(avatarEl(u.displayName));
+                // The admin list is fetched separately, so this row object -- not
+                // S.users -- is the only source for pending/blocked accounts.
+                row.append(avatarEl(u.displayName, { src: userAvatar(u) }));
                 row.append(h('div', { class: 'u-mid' }, [
                     h('div', { class: 'u-name', text: u.displayName + (u.role === 'admin' ? ' · admin' : '') }),
                     h('div', { class: 'u-sub', text: '@' + u.username }),

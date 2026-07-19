@@ -93,19 +93,56 @@ function hueFor(str) {
     return x;
 }
 
-export function avatarEl(name, { online = null, size = '', group = false } = {}) {
+// `name` stays positional and a photo is opt-in through `src`, so no call site
+// reorders arguments and the initials/hue path is untouched when there is none.
+export function avatarEl(name, { online = null, size = '', group = false, src = null } = {}) {
     const el = h('div', { class: 'avatar ' + size });
-    el.textContent = group ? '👥' : initials(name);
-    if (!group) el.style.background = `hsl(${hueFor(name)} 45% 38%)`;
-    if (online !== null) el.append(h('span', { class: 'dot' + (online ? ' on' : '') }));
+    const dot = () => {
+        if (online !== null) el.append(h('span', { class: 'dot' + (online ? ' on' : '') }));
+    };
+    // Assigning textContent wipes any child, so the photo and the initials must
+    // be mutually exclusive rather than sequential.
+    const fallback = () => {
+        el.textContent = group ? '👥' : initials(name);
+        if (!group) el.style.background = `hsl(${hueFor(name)} 45% 38%)`;
+        dot();
+    };
+    if (src) {
+        // onerror degrades to initials if the file is missing or the token is stale.
+        el.append(h('img', { src, alt: '', loading: 'lazy', onerror: fallback }));
+        dot();
+    } else {
+        fallback();
+    }
     return el;
 }
 
 /* ---------------- names ---------------- */
 
+// S.me and S.users.get(S.me.id) are separate objects, so self must be resolved
+// explicitly or a lookup returns a stale copy of your own record.
+export function userById(id) {
+    if (S.me && id === S.me.id) return S.me;
+    return S.users.get(id) || null;
+}
+
 export function userName(id) {
-    if (S.me && id === S.me.id) return S.me.displayName;
-    return S.users.get(id)?.displayName || 'User';
+    return userById(id)?.displayName || 'User';
+}
+
+export function userAvatar(u) {
+    return u && u.avatar ? `api/avatars/u${u.id}/${u.avatar}` : null;
+}
+
+// One place decides where a conversation's picture comes from. A direct chat has
+// no picture of its own — it borrows the other participant's, so it keeps up when
+// they change their photo (user:updated never touches S.convs).
+export function convAvatarSrc(conv) {
+    if (!conv) return null;
+    if (conv.type === 'group') {
+        return conv.id && conv.avatar ? `api/avatars/c${conv.id}/${conv.avatar}` : null;
+    }
+    return userAvatar(userById(convOther(conv)));
 }
 
 export function convTitle(conv) {

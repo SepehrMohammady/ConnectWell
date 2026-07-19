@@ -21,6 +21,29 @@ export async function api(path, { method = 'GET', body } = {}) {
     return data;
 }
 
+// Raw-bytes POST. api() JSON-stringifies its body so it cannot carry binary, and
+// upload() is hardwired to the message route, which would post the image into the
+// conversation. Sending real bytes also dodges the 64kb express.json limit.
+export async function postBytes(path, blob) {
+    const r = await fetch(path, {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'ConnectWell',
+            'Content-Type': blob.type || 'application/octet-stream',
+        },
+        credentials: 'same-origin',
+        body: blob,
+    });
+    let data = null;
+    try { data = await r.json(); } catch { /* non-JSON */ }
+    if (!r.ok) {
+        const e = new Error(data?.error || 'Request failed (' + r.status + ')');
+        e.status = r.status;
+        throw e;
+    }
+    return data;
+}
+
 export function upload(convId, blob, { fileName, mime, msgType, duration, onProgress } = {}) {
     return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();

@@ -4,6 +4,7 @@
 import { api } from './api.js';
 import {
     S, $, h, net, toast, avatarEl, userName, convTitle, ringStart, ringStop,
+    userById, userAvatar, convAvatarSrc,
 } from './core.js';
 
 let iceServers = null;
@@ -196,7 +197,8 @@ export function onCallRing(d) {
     $('ring-sub').textContent = 'Incoming ' + (d.kind === 'video' ? 'video' : 'voice') + ' call'
         + (conv?.type === 'group' ? ' · ' + convTitle(conv) : '');
     const av = $('ring-avatar');
-    av.replaceWith(Object.assign(avatarEl(userName(d.from)), { id: 'ring-avatar' }));
+    av.replaceWith(Object.assign(
+        avatarEl(userName(d.from), { src: userAvatar(userById(d.from)) }), { id: 'ring-avatar' }));
     $('ring-banner').hidden = false;
     ringStart();
 }
@@ -234,12 +236,14 @@ function attachStream(peer) {
     }
 }
 
-function tileEl(name, { local = false, hasVideo = true } = {}) {
+// `src` has to be threaded in: only a pre-resolved name is in scope here, so
+// without it nobody's photo (including your own) reaches a call tile.
+function tileEl(name, { local = false, hasVideo = true, src = null } = {}) {
     const tile = h('div', { class: 'call-tile' + (local ? ' local' : '') + (hasVideo ? '' : ' audio-only') });
     const video = h('video', { autoplay: '', playsinline: '' });
     if (local) video.muted = true;
     tile.append(video);
-    if (!hasVideo) tile.append(avatarEl(name, { size: 'big' }));
+    if (!hasVideo) tile.append(avatarEl(name, { size: 'big', src }));
     tile.append(h('span', { class: 'tile-name', text: name }));
     return tile;
 }
@@ -251,18 +255,23 @@ function renderGrid() {
 
     for (const peer of cur.peers.values()) {
         const hasVideo = cur.kind === 'video';
-        peer.el = tileEl(userName(peer.userId), { hasVideo });
+        peer.el = tileEl(userName(peer.userId), { hasVideo, src: userAvatar(userById(peer.userId)) });
         grid.append(peer.el);
         attachStream(peer);
     }
     if (cur.peers.size === 0) {
+        // The fallback literal has no id, which is why convAvatarSrc guards on one
+        // rather than emitting a request for "cundefined".
+        const conv = S.convs.get(cur.convId) || { type: 'group', name: '…', members: [] };
         grid.append(h('div', { class: 'call-tile audio-only' }, [
-            avatarEl(convTitle(S.convs.get(cur.convId) || { type: 'group', name: '…', members: [] }), { size: 'big' }),
+            avatarEl(convTitle(conv), { size: 'big', src: convAvatarSrc(conv) }),
             h('span', { class: 'tile-name', text: 'Calling…' }),
         ]));
     }
 
-    const localTile = tileEl('You', { local: true, hasVideo: cur.kind === 'video' });
+    const localTile = tileEl('You', {
+        local: true, hasVideo: cur.kind === 'video', src: userAvatar(S.me),
+    });
     grid.append(localTile);
     const lv = localTile.querySelector('video');
     lv.srcObject = cur.local;

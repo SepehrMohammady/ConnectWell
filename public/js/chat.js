@@ -3,7 +3,7 @@
 import { api, upload } from './api.js';
 import {
     S, $, h, bus, net, toast, avatarEl, userName, convTitle, convOther,
-    fmtTime, fmtDay, sameDay, fmtSize, fmtDur,
+    fmtTime, fmtDay, sameDay, fmtSize, fmtDur, userById, userAvatar, convAvatarSrc,
 } from './core.js';
 
 const MIC_SVG = 'M12 14c1.7 0 3-1.3 3-3V5c0-1.7-1.3-3-3-3S9 3.3 9 5v6c0 1.7 1.3 3 3 3zm5.3-3c0 3-2.5 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.4 2.7 6.2 6 6.7V21h2v-3.3c3.3-.5 6-3.3 6-6.7h-1.7z';
@@ -67,7 +67,8 @@ export function renderHeader() {
     $('chat-title').textContent = convTitle(conv);
     const av = $('chat-avatar');
     av.replaceWith(Object.assign(
-        avatarEl(convTitle(conv), { group: conv.type === 'group' }), { id: 'chat-avatar' }));
+        avatarEl(convTitle(conv), { group: conv.type === 'group', src: convAvatarSrc(conv) }),
+        { id: 'chat-avatar' }));
     if (conv.type === 'group') {
         $('chat-sub').textContent = conv.members.length + ' members';
     } else {
@@ -148,7 +149,9 @@ function msgEl(m) {
     const conv = S.convs.get(m.conversationId);
     const row = h('div', { class: 'msg-row' + (mine ? ' mine' : ''), dataset: { mid: m.id } });
     if (!mine && conv?.type === 'group') {
-        row.append(avatarEl(userName(m.senderId), { size: 'small' }));
+        row.append(avatarEl(userName(m.senderId), {
+            size: 'small', src: userAvatar(userById(m.senderId)),
+        }));
     }
     const bubble = h('div', { class: 'bubble' + (m.deleted ? ' deleted' : '') });
     if (!mine && conv?.type === 'group') {
