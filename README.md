@@ -105,7 +105,10 @@ The app lives at `~/apps/connectwell`, runs as the login user on
 
 5. **Updates**: push to GitHub, then on the server
    `cd ~/apps/connectwell && git pull && npm install --omit=dev` and
-   `pkill -f apps/connectwell/server.js` (the watchdog restarts it within a minute).
+   `pkill -f "[a]pps/connectwell/server.js"` (the watchdog restarts it within a
+   minute). The `[a]` is deliberate: run over SSH, a plain
+   `pkill -f apps/connectwell/server.js` also matches the shell running the
+   command and kills the session along with the app.
 
 ### Optional TURN for reliable calls on strict networks
 
