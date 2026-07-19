@@ -88,6 +88,33 @@ Bump the version in `package.json` as part of the change itself:
 While the app is `0.x` it is pre-1.0, so the API is not frozen: a breaking change
 may land as a minor bump rather than forcing `1.0.0`.
 
+## Shared-file retention
+
+Chat uploads in `data/uploads` are reclaimed by two independent rules. Profile and
+group photos live in `data/avatars` and are never eligible — the sweep does not
+know that path exists.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `FILE_RETENTION_DAYS` | `365` | Age rule: files older than this are removed. `0` disables it. |
+| `STORAGE_HIGH_GB` / `STORAGE_HIGH_BYTES` | `60` GB | Backstop trigger: above this, start removing. |
+| `STORAGE_LOW_GB` / `STORAGE_LOW_BYTES` | `50` GB | Backstop target: remove oldest-first until under this. |
+| `STORAGE_MIN_AGE_MS` | `3600000` | A file is not eligible until this old, so a sweep cannot race an upload still being written. |
+| `STORAGE_SWEEP_MS` | `900000` | How often the sweep runs. `0` disables it. |
+| `PURGE_ENABLED` | *off* | **Deletion happens only when this is `1`.** Otherwise every sweep is a dry run. |
+
+**Deletion is off by default.** With `PURGE_ENABLED` unset the sweep still measures,
+selects and records what it *would* remove to `data/purge-log.jsonl`, changing
+nothing. Inspect that log, and `GET api/admin/storage`, before switching it on.
+
+Anything nonsensical — thresholds swapped, zero, or unparseable — disables purging
+entirely rather than being clamped, because a misread threshold must never mean
+"delete everything". Admins can inspect usage with `GET api/admin/storage` and run
+one sweep on demand with `POST api/admin/storage/sweep`.
+
+A purged message keeps its place in the conversation and shows "Removed to free
+space" with the original name and size; the file itself 404s.
+
 ## Deployment (IONOS VPS, no sudo needed for the app)
 
 The app lives at `~/apps/connectwell`, runs as the login user on

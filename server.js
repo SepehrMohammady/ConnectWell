@@ -76,3 +76,22 @@ initWs(server);
 server.listen(config.PORT, config.HOST, () => {
     console.log(`ConnectWell v${require('./package.json').version} on http://${config.HOST}:${config.PORT}${B}/`);
 });
+
+// Shared-file retention. Runs on a timer, well after boot so a restart storm
+// cannot stack sweeps. unref() so it never holds the process open, and every
+// call is wrapped: housekeeping must not be able to take the server down.
+if (config.STORAGE_SWEEP_MS > 0) {
+    const storage = require('./lib/storage');
+    const run = () => {
+        Promise.resolve()
+            .then(() => storage.sweep({ trigger: 'timer' }))
+            .catch((err) => console.error('storage sweep failed:', err));
+    };
+    setTimeout(run, 30_000).unref();
+    setInterval(run, config.STORAGE_SWEEP_MS).unref();
+    console.log('storage: retention active — '
+        + `${config.FILE_RETENTION_DAYS} day age limit, `
+        + `backstop ${Math.round(config.STORAGE_HIGH_BYTES / 1024 ** 3)}→`
+        + `${Math.round(config.STORAGE_LOW_BYTES / 1024 ** 3)} GB, `
+        + (config.PURGE_ENABLED ? 'DELETION ENABLED' : 'dry run only'));
+}

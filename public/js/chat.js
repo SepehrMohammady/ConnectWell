@@ -106,25 +106,91 @@ function linkify(text) {
     return frag;
 }
 
+// A message whose file was reclaimed keeps its place in the conversation and says
+// so. The name and size survive the purge precisely so this can be specific.
+// Told at the point it matters — when a file is actually being shared — and only
+// once per device, so it informs rather than nags. The same wording lives
+// permanently in the profile's Storage section for anyone who dismissed it.
+const ATTACH_NOTE_KEY = 'cw_seen_storage_note';
+
+function showAttachNote() {
+    const el = $('attach-note');
+    if (!el || !el.hidden) return;
+    try {
+        if (localStorage.getItem(ATTACH_NOTE_KEY)) return;
+    } catch { /* private mode: show it, just do not remember */ }
+
+    el.textContent = '';
+    el.append(h('span', {
+        text: 'Shared files are removed automatically after a while to free space. '
+            + 'Removal is permanent, so save anything you want to keep.',
+    }));
+    el.append(h('button', {
+        class: 'btn small ghost', type: 'button', text: 'Got it',
+        onclick: () => {
+            el.hidden = true;
+            try { localStorage.setItem(ATTACH_NOTE_KEY, '1'); } catch { /* private mode */ }
+        },
+    }));
+    el.hidden = false;
+}
+
+function purgedChip(m) {
+    const label = m.fileName
+        || (m.type === 'voice' ? 'Voice message' : m.type === 'videomsg' ? 'Video message' : 'File');
+    const chip = h('div', {
+        class: 'file-chip file-gone', role: 'note',
+        title: 'This file was removed to free storage space and cannot be recovered.',
+    });
+    chip.append(svgIcon(FILE_SVG));
+    chip.append(h('div', {}, [
+        h('div', { class: 'fc-name', text: label }),
+        h('div', {
+            class: 'fc-size',
+            text: 'Removed to free space' + (m.fileSize ? ' · ' + fmtSize(m.fileSize) : ''),
+        }),
+    ]));
+    return chip;
+}
+
 function bubbleContent(m) {
+    // Driven by the flag, and returning before `src` exists. Falling back on a
+    // failed request instead would be wrong twice over: responses are cached
+    // immutably for a year, so viewers would disagree about the same message —
+    // and the document branch below builds a download anchor, which saves the
+    // 404 JSON body to disk under the original filename.
+    if (m.purged && m.type !== 'text' && m.type !== 'system') return purgedChip(m);
+
     const src = 'api/files/' + m.id;
+    // Self-heal a tab left open across a purge, and the one case the flag cannot
+    // cover: bytes lost while the row still claims the file is there.
+    const gone = (el) => () => { m.purged = true; el.replaceWith(purgedChip(m)); };
     switch (m.type) {
         case 'text':
             return linkify(m.content || '');
         case 'image': {
             const img = h('img', { class: 'msg-img', src, alt: m.fileName || 'image', loading: 'lazy' });
             img.addEventListener('click', () => showLightbox(src));
+            img.addEventListener('error', gone(img));
             return img;
         }
         case 'video':
-        case 'videomsg':
-            return h('video', { class: 'msg-video', src, controls: '', playsinline: '', preload: 'metadata' });
-        case 'audio':
-            return h('audio', { src, controls: '', preload: 'metadata' });
+        case 'videomsg': {
+            const v = h('video', { class: 'msg-video', src, controls: '', playsinline: '', preload: 'metadata' });
+            v.addEventListener('error', gone(v));
+            return v;
+        }
+        case 'audio': {
+            const a = h('audio', { src, controls: '', preload: 'metadata' });
+            a.addEventListener('error', gone(a));
+            return a;
+        }
         case 'voice': {
             const row = h('div', { class: 'voice-row' });
+            const a = h('audio', { src, controls: '', preload: 'metadata' });
+            a.addEventListener('error', gone(row));
             row.append(svgIcon(MIC_SVG));
-            row.append(h('audio', { src, controls: '', preload: 'metadata' }));
+            row.append(a);
             if (m.duration) row.append(h('span', { class: 'muted', text: fmtDur(m.duration) }));
             return row;
         }
@@ -548,6 +614,7 @@ export function initChat() {
     });
 
     $('file-input').addEventListener('change', (e) => {
+        showAttachNote();
         onFilesPicked([...e.target.files]);
         e.target.value = '';
     });

@@ -29,6 +29,7 @@
     --bubble-meta: rgba(255, 255, 255, .45);
     --chip-bg: rgba(255, 255, 255, .05);
     --track: rgba(255, 255, 255, .15);
+    --chip-gone-line: rgba(255, 255, 255, .22);
     --accent-tint: rgba(41, 200, 232, .10);
     --danger-tint: rgba(248, 113, 113, .12);
     /* light-coloured mark, for dark backgrounds */
@@ -55,6 +56,7 @@
     --bubble-meta: rgba(0, 0, 0, .45);
     --chip-bg: rgba(0, 0, 0, .05);
     --track: rgba(0, 0, 0, .12);
+    --chip-gone-line: rgba(0, 0, 0, .20);
     --accent-tint: rgba(11, 124, 153, .10);
     --danger-tint: rgba(217, 45, 45, .10);
     /* charcoal mark (the real brand colour), for light backgrounds */
@@ -356,6 +358,15 @@ img, video { max-width: 100%; }
     color: inherit; text-decoration: none;
 }
 .file-chip svg { width: 22px; height: 22px; fill: var(--accent); flex: none; }
+/* Reclaimed file. An alpha line over whatever surface it sits on, because
+   --border is invisible against --mine in the light palette. */
+.file-chip.file-gone {
+    background: none;
+    border: 1px dashed var(--chip-gone-line);
+    color: var(--muted);
+    cursor: default;
+}
+.file-chip.file-gone svg { fill: var(--muted); }
 .file-chip .fc-name { font-size: .88rem; word-break: break-all; }
 .file-chip .fc-size { color: var(--muted); font-size: .74rem; }
 
@@ -375,6 +386,18 @@ img, video { max-width: 100%; }
 .progress i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .2s; }
 
 .typing-line { padding: 0 1.2rem .3rem; color: var(--muted); font-size: .8rem; font-style: italic; }
+
+/* Retention notice above the composer. Informational, so it borrows the call
+   chip's accent treatment rather than the danger one. */
+.attach-note {
+    display: flex; align-items: center; gap: .8rem;
+    margin: 0 .9rem .4rem; padding: .5rem .9rem;
+    background: var(--accent-tint);
+    border: 1px solid var(--accent-deep);
+    border-radius: 12px;
+    font-size: .82rem; color: var(--muted);
+}
+.attach-note span { flex: 1; }
 
 /* ---------------- composer ---------------- */
 
@@ -512,6 +535,7 @@ img, video { max-width: 100%; }
 }
 .seg-opt.active { background: var(--panel-3); color: var(--text); }
 
+.field-hint { color: var(--muted); font-size: .82rem; line-height: 1.5; }
 .form-note { margin-top: .9rem; font-size: .85rem; }
 .form-note.ok { color: var(--ok); }
 .form-note.bad { color: var(--danger); }

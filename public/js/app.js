@@ -270,6 +270,9 @@ function previewText(conv) {
     if (!m) return conv.type === 'group' ? 'Group created' : 'Say hello';
     if (m.deleted) return 'Message deleted';
     const who = m.senderId === S.me.id ? 'You: ' : (conv.type === 'group' ? userName(m.senderId).split(' ')[0] + ': ' : '');
+    // Otherwise the sidebar advertises "📷 Photo" for a thread whose bubble
+    // already reads "Removed to free space".
+    if (m.purged) return who + 'File removed';
     switch (m.type) {
         case 'text': return who + (m.content || '');
         case 'image': return who + '📷 Photo';
@@ -693,6 +696,15 @@ function profileModal() {
                 newPw.value = '';
                 say('Password updated. Your other devices were signed out.');
             }),
+        }));
+
+        /* storage — permanent copy, since the composer strip is dismissible */
+        modal.append(h('label', { class: 'field-label', text: 'Storage' }));
+        modal.append(h('p', {
+            class: 'field-hint',
+            text: 'Shared files are removed automatically after a while, and the oldest go first '
+                + 'if storage fills up. Removal is permanent, so download anything you want to keep. '
+                + 'Profile and group photos are never removed.',
         }));
 
         modal.append(note);
