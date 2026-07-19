@@ -50,10 +50,15 @@ app.get(B, (req, res, next) => {
 app.use(B + '/api', api);
 app.use(B, express.static(path.join(__dirname, 'public'), {
     setHeaders(res, filePath) {
-        if (filePath.endsWith('.html') || filePath.endsWith('manifest.webmanifest')) {
+        // Filenames are not fingerprinted, so HTML, CSS and JS must revalidate on
+        // every load. Caching them for a fixed window lets a fresh index.html pair
+        // with a stale stylesheet, which renders a visibly broken UI. ETags keep
+        // revalidation cheap (304, no body). Images change rarely, and when they
+        // do they arrive under a new name, so they can sit in the cache.
+        if (/\.(html|css|js|webmanifest)$/.test(filePath)) {
             res.set('Cache-Control', 'no-cache');
         } else {
-            res.set('Cache-Control', 'public, max-age=3600');
+            res.set('Cache-Control', 'public, max-age=86400');
         }
     },
 }));
