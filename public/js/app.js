@@ -46,6 +46,29 @@ async function initFooter() {
     for (const el of document.querySelectorAll('.app-foot')) el.textContent = label;
 }
 
+/* ---------------- theme ---------------- */
+
+// Cycles system -> light -> dark. The actual resolution lives in js/theme.js so
+// the toggle and the pre-paint pass share one implementation.
+const THEME_CYCLE = ['system', 'light', 'dark'];
+const THEME_TITLE = {
+    system: 'Theme: follow device',
+    light: 'Theme: light',
+    dark: 'Theme: dark',
+};
+
+function initTheme() {
+    const btn = $('btn-theme');
+    if (!btn || !window.cwTheme) return;
+    const paint = (pref) => { btn.dataset.pref = pref; btn.title = THEME_TITLE[pref]; };
+    paint(window.cwTheme.preference());
+    btn.addEventListener('click', () => {
+        const cur = window.cwTheme.preference();
+        const next = THEME_CYCLE[(THEME_CYCLE.indexOf(cur) + 1) % THEME_CYCLE.length];
+        paint(window.cwTheme.set(next).preference);
+    });
+}
+
 function showPending() {
     show('view-pending');
     clearInterval(pendingPoll);
@@ -603,5 +626,6 @@ $('btn-pending-logout').addEventListener('click', async () => {
     location.reload();
 });
 
+initTheme();
 initFooter();
 boot();

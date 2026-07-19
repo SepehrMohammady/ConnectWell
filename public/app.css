@@ -1,6 +1,13 @@
 /* ConnectWell — Author: Sepehr Mohammady */
 
-:root {
+/* Theme palettes.
+   js/theme.js resolves the choice (saved preference, else the OS setting) and
+   stamps data-theme on <html> before first paint, so there is never a flash of
+   the wrong theme. Dark doubles as the fallback if that script never runs. */
+
+:root { --radius: 14px; }
+
+:root, :root[data-theme='dark'] {
     --bg: #0e1013;
     --panel: #151920;
     --panel-2: #1c222c;
@@ -14,7 +21,44 @@
     --danger: #f87171;
     --ok: #4ade80;
     --shadow: 0 12px 40px rgba(0, 0, 0, .5);
-    --radius: 14px;
+    /* legible text sitting on a filled --accent / --danger / --ok background */
+    --on-accent: #06222b;
+    --on-danger: #2b0808;
+    --on-ok: #06290f;
+    /* washes that must flip with the theme, not stay white-on-anything */
+    --bubble-meta: rgba(255, 255, 255, .45);
+    --chip-bg: rgba(255, 255, 255, .05);
+    --track: rgba(255, 255, 255, .15);
+    --accent-tint: rgba(41, 200, 232, .10);
+    --danger-tint: rgba(248, 113, 113, .12);
+    /* light-coloured mark, for dark backgrounds */
+    --brand-mark: url('logo-mark.png');
+}
+
+:root[data-theme='light'] {
+    --bg: #eef1f5;
+    --panel: #ffffff;
+    --panel-2: #f1f4f8;
+    --panel-3: #e2e8f0;
+    --border: #dee4ed;
+    --text: #131820;
+    --muted: #5f6b7d;
+    --accent: #0b7c99;
+    --accent-deep: #075c73;
+    --mine: #cdeaf5;
+    --danger: #d92d2d;
+    --ok: #15803d;
+    --shadow: 0 12px 40px rgba(15, 23, 42, .14);
+    --on-accent: #ffffff;
+    --on-danger: #ffffff;
+    --on-ok: #ffffff;
+    --bubble-meta: rgba(0, 0, 0, .45);
+    --chip-bg: rgba(0, 0, 0, .05);
+    --track: rgba(0, 0, 0, .12);
+    --accent-tint: rgba(11, 124, 153, .10);
+    --danger-tint: rgba(217, 45, 45, .10);
+    /* charcoal mark (the real brand colour), for light backgrounds */
+    --brand-mark: url('logo-mark-dark.png');
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -41,7 +85,7 @@ img, video { max-width: 100%; }
 
 .btn {
     display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
-    background: var(--accent); color: #06222b; font-weight: 600;
+    background: var(--accent); color: var(--on-accent); font-weight: 600;
     border-radius: 999px; padding: .65rem 1.3rem;
     transition: filter .15s, transform .05s;
 }
@@ -50,7 +94,7 @@ img, video { max-width: 100%; }
 .btn.small { padding: .4rem .95rem; font-size: .88rem; }
 .btn.full { width: 100%; }
 .btn.ghost { background: var(--panel-3); color: var(--text); }
-.btn.danger { background: var(--danger); color: #2b0808; }
+.btn.danger { background: var(--danger); color: var(--on-danger); }
 .btn:disabled { opacity: .5; cursor: default; }
 
 .icon-btn {
@@ -63,7 +107,13 @@ img, video { max-width: 100%; }
 .icon-btn:hover { background: var(--panel-3); color: var(--text); }
 .icon-btn svg { width: 21px; height: 21px; fill: currentColor; }
 .icon-btn.send { color: var(--accent); }
-.icon-btn.recording { color: var(--danger); background: rgba(248, 113, 113, .12); }
+.icon-btn.recording { color: var(--danger); background: var(--danger-tint); }
+
+/* theme toggle shows only the icon for the current preference */
+#btn-theme svg { display: none; }
+#btn-theme[data-pref='system'] .ic-system,
+#btn-theme[data-pref='light'] .ic-light,
+#btn-theme[data-pref='dark'] .ic-dark { display: block; }
 
 .round-btn {
     display: inline-flex; align-items: center; justify-content: center;
@@ -74,9 +124,9 @@ img, video { max-width: 100%; }
 .round-btn:hover { filter: brightness(1.2); }
 .round-btn:active { transform: scale(.95); }
 .round-btn svg { width: 24px; height: 24px; fill: currentColor; }
-.round-btn.accept { background: var(--ok); color: #06290f; }
-.round-btn.decline { background: var(--danger); color: #2b0808; }
-.round-btn.off { background: var(--danger); color: #2b0808; }
+.round-btn.accept { background: var(--ok); color: var(--on-ok); }
+.round-btn.decline { background: var(--danger); color: var(--on-danger); }
+.round-btn.off { background: var(--danger); color: var(--on-danger); }
 
 .badge {
     position: absolute; top: 2px; right: 2px;
@@ -115,9 +165,16 @@ img, video { max-width: 100%; }
     text-align: center;
 }
 .brand { display: flex; align-items: center; gap: .6rem; font-weight: 700; }
-.brand img { width: 28px; height: 28px; border-radius: 8px; }
 .brand.big { flex-direction: column; justify-content: center; margin-bottom: .4rem; }
-.brand.big img { width: 64px; height: 64px; border-radius: 16px; }
+
+/* The mark swaps with the theme via --brand-mark, so it stays legible on both
+   the dark and the light panel. */
+.brand-mark {
+    display: block; flex: none;
+    background: var(--brand-mark) center / contain no-repeat;
+}
+.brand .brand-mark { width: 28px; height: 28px; }
+.brand.big .brand-mark { width: 64px; height: 64px; }
 .brand.big h1 { font-size: 1.5rem; }
 .auth-tag { color: var(--muted); font-size: .9rem; margin-bottom: 1.6rem; }
 
@@ -201,7 +258,7 @@ img, video { max-width: 100%; }
 .conv-time { color: var(--muted); font-size: .72rem; }
 .conv-unread {
     min-width: 19px; height: 19px; padding: 0 5px;
-    background: var(--accent); color: #06222b;
+    background: var(--accent); color: var(--on-accent);
     font-size: .72rem; font-weight: 700; line-height: 19px;
     border-radius: 999px; text-align: center;
 }
@@ -211,7 +268,7 @@ img, video { max-width: 100%; }
 #chatpane { display: flex; flex-direction: column; min-width: 0; height: 100dvh; }
 .chat-empty { flex: 1; display: flex; align-items: center; justify-content: center; }
 .chat-empty-inner { text-align: center; color: var(--muted); }
-.chat-empty-inner img { width: 64px; height: 64px; border-radius: 16px; opacity: .4; margin-bottom: 1rem; }
+.chat-empty-inner .brand-mark { width: 64px; height: 64px; opacity: .4; margin: 0 auto 1rem; }
 
 .chat-ui { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 
@@ -234,7 +291,7 @@ img, video { max-width: 100%; }
 .call-chip {
     display: flex; align-items: center; gap: .8rem;
     margin: .6rem .9rem 0; padding: .5rem .9rem;
-    background: rgba(41, 200, 232, .1);
+    background: var(--accent-tint);
     border: 1px solid var(--accent-deep);
     border-radius: 12px; font-size: .9rem;
 }
@@ -271,7 +328,7 @@ img, video { max-width: 100%; }
 .bubble a { color: var(--accent); }
 .bubble .meta {
     display: block; text-align: right;
-    color: rgba(255, 255, 255, .45); font-size: .68rem; margin-top: .2rem;
+    color: var(--bubble-meta); font-size: .68rem; margin-top: .2rem;
     white-space: nowrap;
 }
 .bubble.deleted { font-style: italic; color: var(--muted); }
@@ -286,7 +343,7 @@ img, video { max-width: 100%; }
 
 .file-chip {
     display: flex; align-items: center; gap: .6rem;
-    background: rgba(255, 255, 255, .05);
+    background: var(--chip-bg);
     border-radius: 10px; padding: .5rem .7rem; margin: .15rem 0;
     color: inherit; text-decoration: none;
 }
@@ -306,7 +363,7 @@ img, video { max-width: 100%; }
 .msg-del:hover { color: var(--danger); }
 
 .upload-bubble .up-name { font-size: .85rem; margin-bottom: .3rem; }
-.progress { height: 4px; background: rgba(255, 255, 255, .15); border-radius: 2px; overflow: hidden; width: 200px; }
+.progress { height: 4px; background: var(--track); border-radius: 2px; overflow: hidden; width: 200px; }
 .progress i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .2s; }
 
 .typing-line { padding: 0 1.2rem .3rem; color: var(--muted); font-size: .8rem; font-style: italic; }
@@ -355,11 +412,16 @@ img, video { max-width: 100%; }
 
 /* ---------------- call overlay ---------------- */
 
+/* The call surface stays dark in both themes — video reads best on black — so it
+   keeps light-on-dark colours rather than inheriting the page palette. */
 .call-overlay {
     position: fixed; inset: 0; z-index: 50;
     background: #0a0c0f;
+    color: #e8ecf1;
     display: flex; flex-direction: column;
 }
+.call-overlay .call-tile { background: #151920; }
+.call-overlay .call-status { color: #8b94a3; }
 .call-grid {
     flex: 1; display: grid; gap: .5rem; padding: .5rem;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
