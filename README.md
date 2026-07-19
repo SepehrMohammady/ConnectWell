@@ -154,19 +154,33 @@ The app lives at `~/apps/connectwell`, runs as the login user on
    `pkill -f apps/connectwell/server.js` also matches the shell running the
    command and kills the session along with the app.
 
-### Optional TURN for reliable calls on strict networks
+### TURN for reliable calls on strict networks
 
-STUN-only WebRTC fails on some mobile/CGNAT networks. Installing coturn fixes that:
+Ring and accept ride the app's own WebSocket, but the audio/video itself flows
+directly device-to-device over ICE. On CGNAT / mobile-carrier / strict-NAT
+networks there is no direct path, so STUN alone cannot connect and the call is
+silent — accepted but with no media. A TURN relay fixes it.
+
+The app is already wired for it: once `TURN_HOST`/`TURN_SECRET` are in `.env`,
+`api/ice` hands out short-lived HMAC credentials and the client uses them
+automatically — no code change.
+
+To set it up:
 
 ```bash
-sudo apt install coturn
-# /etc/turnserver.conf: use-static-auth-secret, static-auth-secret=<secret>,
-# realm=example.com, then enable + start the service and open ports
-# 3478/tcp+udp and the relay range in the firewall.
+# 1. put a shared secret in the app's .env (generated on the server):
+#    printf 'TURN_HOST=example.com\nTURN_SECRET=%s\n' "$(openssl rand -hex 32)" >> ~/apps/connectwell/.env
+# 2. install + configure coturn, open the firewall, start the service:
+sudo bash ~/apps/connectwell/deploy/setup-turn.sudo.sh
+# 3. restart the app so it reads the new .env:
+pkill -f "[a]pps/connectwell/server.js"
 ```
 
-Set `TURN_HOST`/`TURN_SECRET` in `.env`; the app then hands out short-lived
-HMAC credentials at `api/ice`.
+`setup-turn.sudo.sh` reads `TURN_SECRET` from `.env` into
+`/etc/turnserver.conf` (so the secret is never in git), opens 3478 udp+tcp and
+the relay range 49160–49260/udp in ufw, and starts coturn. If the VPS also has
+a provider/cloud firewall (e.g. the IONOS panel), open those same ports there
+too, or external clients still cannot reach the relay.
 
 ## Author
 
