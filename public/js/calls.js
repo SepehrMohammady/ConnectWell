@@ -2,6 +2,7 @@
 // negotiation per peer. Signaling rides the app WebSocket ('rtc' events).
 
 import { api } from './api.js';
+import { t } from './i18n.js';
 import {
     S, $, h, net, toast, avatarEl, userName, convTitle, ringStart, ringStop,
     userById, userAvatar, convAvatarSrc,
@@ -31,8 +32,8 @@ async function getMedia(kind) {
         });
     } catch (e) {
         toast(kind === 'video'
-            ? 'Camera & microphone access is needed for video calls'
-            : 'Microphone access is needed for calls');
+            ? t('call.need_camera_mic')
+            : t('call.need_mic'));
         return null;
     }
 }
@@ -127,7 +128,7 @@ function dropPeer(connId) {
 /* ---------------- start / join / leave ---------------- */
 
 export async function startCall(convId, kind) {
-    if (inCall()) { toast('You are already in a call'); return; }
+    if (inCall()) { toast(t('call.already_in_call')); return; }
     const existing = S.calls.get(convId);
     if (existing) { joinCall(existing.callId, convId, existing.kind); return; }
     const local = await getMedia(kind);
@@ -139,7 +140,7 @@ export async function startCall(convId, kind) {
 }
 
 export async function joinCall(callId, convId, kind) {
-    if (inCall()) { toast('You are already in a call'); return; }
+    if (inCall()) { toast(t('call.already_in_call')); return; }
     dismissRing();
     const local = await getMedia(kind);
     if (!local) return;
@@ -158,7 +159,7 @@ export function hangup() {
 function teardown() {
     if (!cur) return;
     for (const [id] of cur.peers) dropPeer(id);
-    cur.local?.getTracks().forEach((t) => t.stop());
+    cur.local?.getTracks().forEach((track) => track.stop());
     clearInterval(cur.timer);
     cur = null;
     $('call-overlay').hidden = true;
@@ -194,8 +195,12 @@ export function onCallRing(d) {
     const conv = S.convs.get(d.convId);
     ring = { ...d, timeout: setTimeout(dismissRing, 45_000) };
     $('ring-title').textContent = userName(d.from);
-    $('ring-sub').textContent = 'Incoming ' + (d.kind === 'video' ? 'video' : 'voice') + ' call'
-        + (conv?.type === 'group' ? ' · ' + convTitle(conv) : '');
+    // One key per rendered sentence: the kind word and the ' · <group>' tail are
+    // not separable fragments a translator could safely reorder.
+    $('ring-sub').textContent = conv?.type === 'group'
+        ? t(d.kind === 'video' ? 'call.ring_sub_video_group' : 'call.ring_sub_voice_group',
+            { title: convTitle(conv) })
+        : t(d.kind === 'video' ? 'call.ring_sub_video' : 'call.ring_sub_voice');
     const av = $('ring-avatar');
     av.replaceWith(Object.assign(
         avatarEl(userName(d.from), { src: userAvatar(userById(d.from)) }), { id: 'ring-avatar' }));
@@ -204,14 +209,14 @@ export function onCallRing(d) {
 }
 
 export function onCallDeclined(d) {
-    if (cur && cur.callId === d.callId) toast(userName(d.userId) + ' declined');
+    if (cur && cur.callId === d.callId) toast(t('call.declined', { name: userName(d.userId) }));
 }
 
 export function onCallEnded(d) {
     if (d.convId) S.calls.delete(d.convId);
     else for (const [k, v] of S.calls) if (v.callId === d.callId) S.calls.delete(k);
     if (ring && ring.callId === d.callId) dismissRing();
-    if (cur && cur.callId === d.callId) { teardown(); toast('Call ended'); }
+    if (cur && cur.callId === d.callId) { teardown(); toast(t('call.ended')); }
     updateChip();
 }
 
@@ -265,11 +270,11 @@ function renderGrid() {
         const conv = S.convs.get(cur.convId) || { type: 'group', name: '…', members: [] };
         grid.append(h('div', { class: 'call-tile audio-only' }, [
             avatarEl(convTitle(conv), { size: 'big', src: convAvatarSrc(conv) }),
-            h('span', { class: 'tile-name', text: 'Calling…' }),
+            h('span', { class: 'tile-name', text: t('call.calling') }),
         ]));
     }
 
-    const localTile = tileEl('You', {
+    const localTile = tileEl(t('call.you'), {
         local: true, hasVideo: cur.kind === 'video', src: userAvatar(S.me),
     });
     grid.append(localTile);
@@ -287,7 +292,7 @@ function showOverlay() {
     cur.timer = setInterval(() => {
         if (!cur) return;
         const s = Math.floor((Date.now() - cur.startedAt) / 1000);
-        $('call-status').textContent = cur.peers.size === 0 ? 'Calling…'
+        $('call-status').textContent = cur.peers.size === 0 ? t('call.calling')
             : Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
     }, 1000);
     updateChip();
@@ -297,8 +302,9 @@ export function updateChip() {
     const chip = $('call-chip');
     const call = S.activeConvId ? S.calls.get(S.activeConvId) : null;
     if (call && (!cur || cur.callId !== call.callId)) {
-        $('call-chip-label').textContent = 'Ongoing ' + (call.kind === 'video' ? 'video' : 'voice')
-            + ' call · ' + call.participants.length + ' in';
+        $('call-chip-label').textContent = t(
+            call.kind === 'video' ? 'call.chip_video' : 'call.chip_voice',
+            { count: call.participants.length });
         chip.hidden = false;
         chip.dataset.callId = call.callId;
         chip.dataset.kind = call.kind;
@@ -318,14 +324,14 @@ export function initCalls() {
         if (!cur) return;
         const tracks = cur.local.getAudioTracks();
         const on = !tracks[0]?.enabled;
-        tracks.forEach((t) => { t.enabled = on; });
+        tracks.forEach((track) => { track.enabled = on; });
         $('call-mute').classList.toggle('off', !on);
     });
     $('call-cam').addEventListener('click', () => {
         if (!cur) return;
         const tracks = cur.local.getVideoTracks();
         const on = !tracks[0]?.enabled;
-        tracks.forEach((t) => { t.enabled = on; });
+        tracks.forEach((track) => { track.enabled = on; });
         $('call-cam').classList.toggle('off', !on);
     });
 

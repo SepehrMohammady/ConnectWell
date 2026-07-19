@@ -16,6 +16,9 @@
     <!-- Resolves the theme before first paint, so there is no flash of the wrong
          palette. Must stay a blocking script in <head>. -->
     <script src="js/theme.js"></script>
+    <!-- Resolves the language and stamps lang/dir on <html> before first paint.
+         Blocking, for the same reason as theme.js. -->
+    <script src="js/lang.js"></script>
 </head>
 
 <body>
@@ -27,25 +30,25 @@
                 <span class="brand-mark" aria-hidden="true"></span>
                 <h1>ConnectWell</h1>
             </div>
-            <p class="auth-tag">Private messenger by ConnectWell</p>
+            <p class="auth-tag" data-i18n="ui.auth.tagline">Private messenger by ConnectWell</p>
 
             <div class="auth-tabs">
-                <button id="tab-login" class="auth-tab active" type="button">Sign in</button>
-                <button id="tab-register" class="auth-tab" type="button">Create account</button>
+                <button id="tab-login" class="auth-tab active" type="button" data-i18n="ui.auth.tab.signIn">Sign in</button>
+                <button id="tab-register" class="auth-tab" type="button" data-i18n="ui.auth.tab.createAccount">Create account</button>
             </div>
 
             <form id="form-login" class="auth-form">
-                <input id="login-username" type="text" placeholder="Username" autocomplete="username" required>
-                <input id="login-password" type="password" placeholder="Password" autocomplete="current-password" required>
-                <button class="btn full" type="submit">Sign in</button>
+                <input id="login-username" type="text" placeholder="Username" data-i18n-placeholder="ui.auth.login.username" autocomplete="username" required>
+                <input id="login-password" type="password" placeholder="Password" data-i18n-placeholder="ui.auth.login.password" autocomplete="current-password" required>
+                <button class="btn full" type="submit" data-i18n="ui.auth.login.submit">Sign in</button>
             </form>
 
             <form id="form-register" class="auth-form" hidden>
-                <input id="reg-username" type="text" placeholder="Username (letters, digits, _)" autocomplete="username" required>
-                <input id="reg-display" type="text" placeholder="Display name" autocomplete="name" required>
-                <input id="reg-password" type="password" placeholder="Password (min 8 characters)" autocomplete="new-password" required>
-                <button class="btn full" type="submit">Create account</button>
-                <p class="auth-note">New accounts need approval by the admin before they can start chatting.</p>
+                <input id="reg-username" type="text" placeholder="Username (letters, digits, _)" data-i18n-placeholder="ui.auth.register.username" autocomplete="username" required>
+                <input id="reg-display" type="text" placeholder="Display name" data-i18n-placeholder="ui.auth.register.display" autocomplete="name" required>
+                <input id="reg-password" type="password" placeholder="Password (min 8 characters)" data-i18n-placeholder="ui.auth.register.password" autocomplete="new-password" required>
+                <button class="btn full" type="submit" data-i18n="ui.auth.register.submit">Create account</button>
+                <p class="auth-note" data-i18n="ui.auth.register.note">New accounts need approval by the admin before they can start chatting.</p>
             </form>
 
             <p id="auth-error" class="auth-error" hidden></p>
@@ -62,9 +65,9 @@
                 <h1>ConnectWell</h1>
             </div>
             <div class="pending-icon">⏳</div>
-            <h2>Almost there</h2>
-            <p class="pending-text">Your account is waiting for the admin's approval.<br>This page checks automatically.</p>
-            <button id="btn-pending-logout" class="btn ghost" type="button">Sign out</button>
+            <h2 data-i18n="ui.pending.title">Almost there</h2>
+            <p class="pending-text"><span data-i18n="ui.pending.line1">Your account is waiting for the admin's approval.</span><br><span data-i18n="ui.pending.line2">This page checks automatically.</span></p>
+            <button id="btn-pending-logout" class="btn ghost" type="button" data-i18n="ui.pending.signOut">Sign out</button>
 
             <footer class="app-foot"></footer>
         </div>
@@ -85,11 +88,11 @@
                         <svg class="ic-light" viewBox="0 0 24 24"><path d="M12 9c1.65 0 3 1.35 3 3s-1.35 3-3 3-3-1.35-3-3 1.35-3 3-3m0-2c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0a.996.996 0 000-1.41l-1.06-1.06zm1.06-10.96a.996.996 0 000-1.41.996.996 0 00-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36a.996.996 0 000-1.41.996.996 0 00-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z"/></svg>
                         <svg class="ic-dark" viewBox="0 0 24 24"><path d="M12 3a9 9 0 109 9c0-.46-.04-.92-.1-1.36a5.389 5.389 0 01-4.4 2.26 5.403 5.403 0 01-3.14-9.8c-.44-.06-.9-.1-1.36-.1z"/></svg>
                     </button>
-                    <button id="btn-admin" class="icon-btn" title="Admin panel" type="button" hidden>
+                    <button id="btn-admin" class="icon-btn" title="Admin panel" data-i18n-title="ui.sidebar.admin" type="button" hidden>
                         <svg viewBox="0 0 24 24"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
                         <span id="admin-badge" class="badge" hidden></span>
                     </button>
-                    <button id="btn-logout" class="icon-btn" title="Sign out" type="button">
+                    <button id="btn-logout" class="icon-btn" title="Sign out" data-i18n-title="ui.sidebar.logout" type="button">
                         <svg viewBox="0 0 24 24"><path d="M16 13v-2H7V8l-5 4 5 4v-3zM20 3h-8v2h8v14h-8v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>
                     </button>
                 </div>
@@ -98,11 +101,11 @@
             <div id="sb-me" class="sb-me"></div>
 
             <div class="sb-new">
-                <button id="btn-new-chat" class="btn small" type="button">New chat</button>
-                <button id="btn-new-group" class="btn small ghost" type="button">New group</button>
+                <button id="btn-new-chat" class="btn small" type="button" data-i18n="ui.sidebar.newChat">New chat</button>
+                <button id="btn-new-group" class="btn small ghost" type="button" data-i18n="ui.sidebar.newGroup">New group</button>
             </div>
 
-            <nav id="conv-list" class="conv-list" aria-label="Conversations"></nav>
+            <nav id="conv-list" class="conv-list" aria-label="Conversations" data-i18n-aria-label="ui.sidebar.convList"></nav>
 
             <footer class="app-foot"></footer>
         </aside>
@@ -111,16 +114,16 @@
             <div id="chat-empty" class="chat-empty">
                 <div class="chat-empty-inner">
                     <span class="brand-mark" aria-hidden="true"></span>
-                    <p>Select a conversation<br>or start a new one.</p>
+                    <p><span data-i18n="ui.chat.empty.line1">Select a conversation</span><br><span data-i18n="ui.chat.empty.line2">or start a new one.</span></p>
                 </div>
             </div>
 
             <div id="chat-ui" class="chat-ui" hidden>
                 <header class="chat-head">
-                    <button id="btn-back" class="icon-btn only-mobile" title="Back" type="button">
+                    <button id="btn-back" class="icon-btn only-mobile" title="Back" data-i18n-title="ui.chat.back" type="button">
                         <svg viewBox="0 0 24 24"><path d="M20 11H7.8l5.6-5.6L12 4l-8 8 8 8 1.4-1.4L7.8 13H20v-2z"/></svg>
                     </button>
-                    <button id="chat-title-wrap" class="chat-title-wrap" type="button" title="Details">
+                    <button id="chat-title-wrap" class="chat-title-wrap" type="button" title="Details" data-i18n-title="ui.chat.details">
                         <div class="avatar" id="chat-avatar"></div>
                         <div class="chat-title-txt">
                             <div id="chat-title"></div>
@@ -128,10 +131,10 @@
                         </div>
                     </button>
                     <div class="chat-actions">
-                        <button id="btn-call-audio" class="icon-btn" title="Voice call" type="button">
+                        <button id="btn-call-audio" class="icon-btn" title="Voice call" data-i18n-title="ui.chat.callAudio" type="button">
                             <svg viewBox="0 0 24 24"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.2.2 2.4.6 3.6.1.3 0 .7-.2 1l-2.3 2.2z"/></svg>
                         </button>
-                        <button id="btn-call-video" class="icon-btn" title="Video call" type="button">
+                        <button id="btn-call-video" class="icon-btn" title="Video call" data-i18n-title="ui.chat.callVideo" type="button">
                             <svg viewBox="0 0 24 24"><path d="M17 10.5V7c0-.6-.4-1-1-1H4c-.6 0-1 .4-1 1v10c0 .6.4 1 1 1h12c.6 0 1-.4 1-1v-3.5l4 4v-11l-4 4z"/></svg>
                         </button>
                     </div>
@@ -139,7 +142,7 @@
 
                 <div id="call-chip" class="call-chip" hidden>
                     <span id="call-chip-label"></span>
-                    <button id="call-chip-join" class="btn small" type="button">Join</button>
+                    <button id="call-chip-join" class="btn small" type="button" data-i18n="ui.call.chip.join">Join</button>
                 </div>
 
                 <div id="msg-scroll" class="msg-scroll">
@@ -152,18 +155,18 @@
                 <div id="attach-note" class="attach-note" role="status" hidden></div>
 
                 <footer class="composer" id="composer">
-                    <label class="icon-btn" title="Attach file">
+                    <label class="icon-btn" title="Attach file" data-i18n-title="ui.composer.attach">
                         <input id="file-input" type="file" multiple hidden>
                         <svg viewBox="0 0 24 24"><path d="M16.5 6.8v9.7c0 2.5-2 4.5-4.5 4.5s-4.5-2-4.5-4.5V5.5C7.5 3.6 9.1 2 11 2s3.5 1.6 3.5 3.5v10c0 1.1-.9 2-2 2s-2-.9-2-2V6.8H12v8.7c0 .3.2.5.5.5s.5-.2.5-.5v-10c0-1.1-.9-2-2-2s-2 .9-2 2v11c0 1.7 1.3 3 3 3s3-1.3 3-3V6.8h1.5z"/></svg>
                     </label>
-                    <textarea id="composer-input" rows="1" placeholder="Message" maxlength="4000"></textarea>
-                    <button id="btn-voice" class="icon-btn" title="Voice message" type="button">
+                    <textarea id="composer-input" rows="1" placeholder="Message" data-i18n-placeholder="ui.composer.input" maxlength="4000"></textarea>
+                    <button id="btn-voice" class="icon-btn" title="Voice message" data-i18n-title="ui.composer.voice" type="button">
                         <svg viewBox="0 0 24 24"><path d="M12 14c1.7 0 3-1.3 3-3V5c0-1.7-1.3-3-3-3S9 3.3 9 5v6c0 1.7 1.3 3 3 3zm5.3-3c0 3-2.5 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.4 2.7 6.2 6 6.7V21h2v-3.3c3.3-.5 6-3.3 6-6.7h-1.7z"/></svg>
                     </button>
-                    <button id="btn-videomsg" class="icon-btn" title="Video message" type="button">
+                    <button id="btn-videomsg" class="icon-btn" title="Video message" data-i18n-title="ui.composer.videomsg" type="button">
                         <svg viewBox="0 0 24 24"><path d="M18 10.5V7c0-.6-.4-1-1-1H3c-.6 0-1 .4-1 1v10c0 .6.4 1 1 1h14c.6 0 1-.4 1-1v-3.5l4 4v-11l-4 4zM9 9.5l5 3-5 3v-6z"/></svg>
                     </button>
-                    <button id="btn-send" class="icon-btn send" title="Send" type="button">
+                    <button id="btn-send" class="icon-btn send" title="Send" data-i18n-title="ui.composer.send" type="button">
                         <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
                     </button>
                 </footer>
@@ -171,10 +174,10 @@
                 <div id="rec-bar" class="rec-bar" hidden>
                     <span class="rec-dot"></span>
                     <span id="rec-time">0:00</span>
-                    <span id="rec-label" class="rec-label">Recording…</span>
+                    <span id="rec-label" class="rec-label" data-i18n="ui.rec.label">Recording…</span>
                     <div class="rec-spacer"></div>
-                    <button id="rec-cancel" class="btn small ghost" type="button">Cancel</button>
-                    <button id="rec-send" class="btn small" type="button">Send</button>
+                    <button id="rec-cancel" class="btn small ghost" type="button" data-i18n="ui.rec.cancel">Cancel</button>
+                    <button id="rec-send" class="btn small" type="button" data-i18n="ui.rec.send">Send</button>
                 </div>
             </div>
         </main>
@@ -190,10 +193,10 @@
             </div>
         </div>
         <div class="ring-actions">
-            <button id="ring-accept" class="round-btn accept" title="Accept" type="button">
+            <button id="ring-accept" class="round-btn accept" title="Accept" data-i18n-title="ui.ring.accept" type="button">
                 <svg viewBox="0 0 24 24"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.2.2 2.4.6 3.6.1.3 0 .7-.2 1l-2.3 2.2z"/></svg>
             </button>
-            <button id="ring-decline" class="round-btn decline" title="Decline" type="button">
+            <button id="ring-decline" class="round-btn decline" title="Decline" data-i18n-title="ui.ring.decline" type="button">
                 <svg viewBox="0 0 24 24"><path d="M12 9c-1.6 0-3.2.3-4.6.7v3.1c0 .4-.2.8-.6.9-1 .5-1.9 1.1-2.7 1.8-.2.2-.4.3-.7.3-.3 0-.5-.1-.7-.3L.3 13.1c-.2-.2-.3-.4-.3-.7 0-.3.1-.5.3-.7C3.3 8.8 7.5 7 12 7s8.7 1.8 11.7 4.7c.2.2.3.4.3.7 0 .3-.1.5-.3.7l-2.4 2.4c-.2.2-.4.3-.7.3-.3 0-.5-.1-.7-.3-.8-.7-1.7-1.3-2.7-1.8-.4-.2-.6-.5-.6-.9V9.7C15.2 9.3 13.6 9 12 9z"/></svg>
             </button>
         </div>
@@ -203,13 +206,13 @@
         <div id="call-grid" class="call-grid"></div>
         <div id="call-status" class="call-status"></div>
         <div class="call-controls">
-            <button id="call-mute" class="round-btn" title="Mute" type="button">
+            <button id="call-mute" class="round-btn" title="Mute" data-i18n-title="ui.call.mute" type="button">
                 <svg viewBox="0 0 24 24"><path d="M12 14c1.7 0 3-1.3 3-3V5c0-1.7-1.3-3-3-3S9 3.3 9 5v6c0 1.7 1.3 3 3 3zm5.3-3c0 3-2.5 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.4 2.7 6.2 6 6.7V21h2v-3.3c3.3-.5 6-3.3 6-6.7h-1.7z"/></svg>
             </button>
-            <button id="call-cam" class="round-btn" title="Camera" type="button" hidden>
+            <button id="call-cam" class="round-btn" title="Camera" data-i18n-title="ui.call.cam" type="button" hidden>
                 <svg viewBox="0 0 24 24"><path d="M18 10.5V7c0-.6-.4-1-1-1H3c-.6 0-1 .4-1 1v10c0 .6.4 1 1 1h14c.6 0 1-.4 1-1v-3.5l4 4v-11l-4 4z"/></svg>
             </button>
-            <button id="call-hangup" class="round-btn decline" title="Hang up" type="button">
+            <button id="call-hangup" class="round-btn decline" title="Hang up" data-i18n-title="ui.call.hangup" type="button">
                 <svg viewBox="0 0 24 24"><path d="M12 9c-1.6 0-3.2.3-4.6.7v3.1c0 .4-.2.8-.6.9-1 .5-1.9 1.1-2.7 1.8-.2.2-.4.3-.7.3-.3 0-.5-.1-.7-.3L.3 13.1c-.2-.2-.3-.4-.3-.7 0-.3.1-.5.3-.7C3.3 8.8 7.5 7 12 7s8.7 1.8 11.7 4.7c.2.2.3.4.3.7 0 .3-.1.5-.3.7l-2.4 2.4c-.2.2-.4.3-.7.3-.3 0-.5-.1-.7-.3-.8-.7-1.7-1.3-2.7-1.8-.4-.2-.6-.5-.6-.9V9.7C15.2 9.3 13.6 9 12 9z"/></svg>
             </button>
         </div>
@@ -217,14 +220,14 @@
 
     <div id="videomsg-modal" class="modal-backdrop" hidden>
         <div class="modal">
-            <h3>Video message</h3>
+            <h3 data-i18n="ui.videomsg.title">Video message</h3>
             <video id="videomsg-preview" playsinline muted autoplay></video>
             <div class="modal-row">
                 <span id="videomsg-time" class="rec-label">0:00</span>
                 <div class="rec-spacer"></div>
-                <button id="videomsg-cancel" class="btn small ghost" type="button">Cancel</button>
-                <button id="videomsg-record" class="btn small" type="button">Record</button>
-                <button id="videomsg-send" class="btn small" type="button" hidden>Send</button>
+                <button id="videomsg-cancel" class="btn small ghost" type="button" data-i18n="ui.videomsg.cancel">Cancel</button>
+                <button id="videomsg-record" class="btn small" type="button" data-i18n="ui.videomsg.record">Record</button>
+                <button id="videomsg-send" class="btn small" type="button" hidden data-i18n="ui.videomsg.send">Send</button>
             </div>
         </div>
     </div>

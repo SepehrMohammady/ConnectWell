@@ -1,4 +1,7 @@
-// Shared state, tiny DOM helpers, formatting, sounds. No imports.
+// Shared state, tiny DOM helpers, formatting, sounds. Imports only i18n.js,
+// which is a leaf and imports nothing back from here.
+
+import { t } from './i18n.js';
 
 export const S = {
     me: null,
@@ -16,8 +19,9 @@ export const S = {
 
 const handlers = {};
 export const bus = {
-    on(t, f) { (handlers[t] = handlers[t] || []).push(f); },
-    emit(t, ...a) { for (const f of handlers[t] || []) f(...a); },
+    // `evt`, not `t`: a parameter named `t` would shadow the imported t().
+    on(evt, f) { (handlers[evt] = handlers[evt] || []).push(f); },
+    emit(evt, ...a) { for (const f of handlers[evt] || []) f(...a); },
 };
 
 // app.js assigns the live WebSocket sender here.
@@ -57,9 +61,9 @@ export function sameDay(a, b) {
 
 export function fmtDay(ts) {
     const d = new Date(ts), now = new Date();
-    if (sameDay(ts, now.getTime())) return 'Today';
+    if (sameDay(ts, now.getTime())) return t('core.day.today');
     const yest = new Date(now); yest.setDate(now.getDate() - 1);
-    if (sameDay(ts, yest.getTime())) return 'Yesterday';
+    if (sameDay(ts, yest.getTime())) return t('core.day.yesterday');
     return d.toLocaleDateString([], { day: 'numeric', month: 'short', year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined });
 }
 
@@ -68,11 +72,15 @@ export function fmtListTime(ts) {
         : new Date(ts).toLocaleDateString([], { day: 'numeric', month: 'short' });
 }
 
+// The rounding stays here; only the number-plus-unit glue moves into the
+// dictionary, so a language that puts the unit first can reorder the slot.
+// The slot is `size`, not `n`: a numeric `n` would send t() down the
+// _one/_other branch, which these keys do not have.
 export function fmtSize(bytes) {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
-    if (bytes < 1024 * 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + ' MB';
-    return (bytes / 1024 / 1024 / 1024).toFixed(2) + ' GB';
+    if (bytes < 1024) return t('core.size.b', { size: bytes });
+    if (bytes < 1024 * 1024) return t('core.size.kb', { size: (bytes / 1024).toFixed(0) });
+    if (bytes < 1024 * 1024 * 1024) return t('core.size.mb', { size: (bytes / 1024 / 1024).toFixed(1) });
+    return t('core.size.gb', { size: (bytes / 1024 / 1024 / 1024).toFixed(2) });
 }
 
 export function fmtDur(sec) {
@@ -127,7 +135,7 @@ export function userById(id) {
 }
 
 export function userName(id) {
-    return userById(id)?.displayName || 'User';
+    return userById(id)?.displayName || t('core.user.fallback');
 }
 
 export function userAvatar(u) {
@@ -146,7 +154,7 @@ export function convAvatarSrc(conv) {
 }
 
 export function convTitle(conv) {
-    if (conv.type === 'group') return conv.name || 'Group';
+    if (conv.type === 'group') return conv.name || t('core.conv.group_fallback');
     const otherId = conv.members.find((m) => m !== S.me.id);
     return userName(otherId ?? S.me.id);
 }

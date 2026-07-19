@@ -1,6 +1,7 @@
 // Chat pane: message rendering, composer, uploads, voice & video messages.
 
 import { api, upload } from './api.js';
+import { t, has } from './i18n.js';
 import {
     S, $, h, bus, net, toast, avatarEl, userName, convTitle, convOther,
     fmtTime, fmtDay, sameDay, fmtSize, fmtDur, userById, userAvatar, convAvatarSrc,
@@ -70,10 +71,10 @@ export function renderHeader() {
         avatarEl(convTitle(conv), { group: conv.type === 'group', src: convAvatarSrc(conv) }),
         { id: 'chat-avatar' }));
     if (conv.type === 'group') {
-        $('chat-sub').textContent = conv.members.length + ' members';
+        $('chat-sub').textContent = t('chat.members', { n: conv.members.length });
     } else {
         const other = convOther(conv);
-        $('chat-sub').textContent = S.online.has(other) ? 'online' : 'offline';
+        $('chat-sub').textContent = S.online.has(other) ? t('chat.online') : t('chat.offline');
     }
 }
 
@@ -121,12 +122,9 @@ function showAttachNote() {
     } catch { /* private mode: show it, just do not remember */ }
 
     el.textContent = '';
-    el.append(h('span', {
-        text: 'Shared files are removed automatically after a while to free space. '
-            + 'Removal is permanent, so save anything you want to keep.',
-    }));
+    el.append(h('span', { text: t('chat.storage_note') }));
     el.append(h('button', {
-        class: 'btn small ghost', type: 'button', text: 'Got it',
+        class: 'btn small ghost', type: 'button', text: t('chat.storage_note_ok'),
         onclick: () => {
             el.hidden = true;
             try { localStorage.setItem(ATTACH_NOTE_KEY, '1'); } catch { /* private mode */ }
@@ -137,17 +135,20 @@ function showAttachNote() {
 
 function purgedChip(m) {
     const label = m.fileName
-        || (m.type === 'voice' ? 'Voice message' : m.type === 'videomsg' ? 'Video message' : 'File');
+        || (m.type === 'voice' ? t('chat.purged_voice')
+            : m.type === 'videomsg' ? t('chat.purged_video') : t('chat.purged_file'));
     const chip = h('div', {
         class: 'file-chip file-gone', role: 'note',
-        title: 'This file was removed to free storage space and cannot be recovered.',
+        title: t('chat.purged_title'),
     });
     chip.append(svgIcon(FILE_SVG));
     chip.append(h('div', {}, [
         h('div', { class: 'fc-name', text: label }),
         h('div', {
             class: 'fc-size',
-            text: 'Removed to free space' + (m.fileSize ? ' · ' + fmtSize(m.fileSize) : ''),
+            text: m.fileSize
+                ? t('chat.purged_removed_size', { size: fmtSize(m.fileSize) })
+                : t('chat.purged_removed'),
         }),
     ]));
     return chip;
@@ -169,7 +170,7 @@ function bubbleContent(m) {
         case 'text':
             return linkify(m.content || '');
         case 'image': {
-            const img = h('img', { class: 'msg-img', src, alt: m.fileName || 'image', loading: 'lazy' });
+            const img = h('img', { class: 'msg-img', src, alt: m.fileName || t('chat.image_alt'), loading: 'lazy' });
             img.addEventListener('click', () => showLightbox(src));
             img.addEventListener('error', gone(img));
             return img;
@@ -207,9 +208,18 @@ function bubbleContent(m) {
     }
 }
 
+// A system event carries a key plus arguments, so each viewer reads it in their
+// own language. Rows written before that existed — and any key introduced by a
+// newer server than this build knows — fall back to the English sentence the
+// server also stores in `content`.
+export function sysText(m) {
+    if (m.sysKey && has(m.sysKey)) return t(m.sysKey, m.sysArgs || {});
+    return m.content || '';
+}
+
 function msgEl(m) {
     if (m.type === 'system') {
-        return h('div', { class: 'msg-sys', text: m.content || '', dataset: { mid: m.id } });
+        return h('div', { class: 'msg-sys', text: sysText(m), dataset: { mid: m.id } });
     }
     const mine = m.senderId === S.me.id;
     const conv = S.convs.get(m.conversationId);
@@ -224,14 +234,14 @@ function msgEl(m) {
         bubble.append(h('div', { class: 'sender', text: userName(m.senderId) }));
     }
     if (m.deleted) {
-        bubble.append('Message deleted');
+        bubble.append(t('chat.msg_deleted'));
     } else {
         bubble.append(bubbleContent(m));
         bubble.append(h('span', { class: 'meta', text: fmtTime(m.createdAt) }));
         if (mine) {
-            const del = h('button', { class: 'msg-del', title: 'Delete message', type: 'button', text: '✕' });
+            const del = h('button', { class: 'msg-del', title: t('chat.del_title'), type: 'button', text: '✕' });
             del.addEventListener('click', async () => {
-                if (!confirm('Delete this message?')) return;
+                if (!confirm(t('chat.del_confirm'))) return;
                 try { await api('api/messages/' + m.id, { method: 'DELETE' }); }
                 catch (e) { toast(e.message); }
             });
@@ -330,7 +340,7 @@ export function onTyping(convId, userId) {
 }
 
 function clearTyping() {
-    for (const t of typingTimers.values()) clearTimeout(t);
+    for (const timer of typingTimers.values()) clearTimeout(timer);
     typingTimers.clear();
     renderTyping();
 }
@@ -339,7 +349,7 @@ function renderTyping() {
     const names = [...typingTimers.keys()].map(userName);
     const el = $('typing-line');
     if (names.length === 0) { el.hidden = true; return; }
-    el.textContent = names.join(', ') + (names.length === 1 ? ' is' : ' are') + ' typing…';
+    el.textContent = t('chat.typing', { names: names.join(', '), n: names.length });
     el.hidden = false;
 }
 
@@ -408,7 +418,7 @@ async function uploadBlob(blob, { fileName, mime, msgType, duration }) {
     const bar = h('i');
     const temp = h('div', { class: 'msg-row mine' }, [
         h('div', { class: 'bubble upload-bubble' }, [
-            h('div', { class: 'up-name', text: 'Uploading ' + (fileName || 'file') + '…' }),
+            h('div', { class: 'up-name', text: t('chat.uploading', { name: fileName || 'file' }) }),
             h('div', { class: 'progress' }, [bar]),
         ]),
     ]);
@@ -423,7 +433,7 @@ async function uploadBlob(blob, { fileName, mime, msgType, duration }) {
         onMsgNew(message);
         bus.emit('msg-sent', message);
     } catch (e) {
-        temp.querySelector('.up-name').textContent = 'Failed: ' + e.message;
+        temp.querySelector('.up-name').textContent = t('chat.upload_failed', { error: e.message });
         setTimeout(() => temp.remove(), 2500);
     }
 }
@@ -449,16 +459,16 @@ async function startVoice() {
     let stream;
     try {
         stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    } catch { toast('Microphone access is needed for voice messages'); return; }
+    } catch { toast(t('chat.mic_denied')); return; }
     const mime = pickMime(['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4']);
-    if (mime === null) { toast('Recording is not supported in this browser'); stream.getTracks().forEach((t) => t.stop()); return; }
+    if (mime === null) { toast(t('chat.rec_unsupported')); stream.getTracks().forEach((tr) => tr.stop()); return; }
     const recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
     rec = { recorder, stream, chunks: [], start: Date.now(), timer: null, kind: 'voice' };
     recorder.ondataavailable = (e) => { if (e.data.size) rec.chunks.push(e.data); };
     recorder.start(500);
     $('composer').hidden = true;
     $('rec-bar').hidden = false;
-    $('rec-label').textContent = 'Recording voice message…';
+    $('rec-label').textContent = t('chat.rec_voice');
     rec.timer = setInterval(() => { $('rec-time').textContent = fmtDur((Date.now() - rec.start) / 1000); }, 300);
 }
 
@@ -469,7 +479,7 @@ function stopVoice(send) {
     const finish = () => {
         const type = recorder.mimeType || 'audio/webm';
         const blob = new Blob(rec.chunks, { type });
-        stream.getTracks().forEach((t) => t.stop());
+        stream.getTracks().forEach((tr) => tr.stop());
         clearInterval(rec.timer);
         $('rec-bar').hidden = true;
         $('composer').hidden = false;
@@ -498,7 +508,7 @@ async function openVideoMsg() {
         stream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: 'user', width: { ideal: 720 } }, audio: true,
         });
-    } catch { toast('Camera access is needed for video messages'); return; }
+    } catch { toast(t('chat.cam_denied')); return; }
     vrec = { stream, recorder: null, chunks: [], timer: null, start: 0, blob: null };
     const modal = $('videomsg-modal');
     const prev = $('videomsg-preview');
@@ -507,7 +517,7 @@ async function openVideoMsg() {
     prev.controls = false;
     modal.hidden = false;
     $('videomsg-record').hidden = false;
-    $('videomsg-record').textContent = 'Record';
+    $('videomsg-record').textContent = t('chat.vm_record');
     $('videomsg-send').hidden = true;
     $('videomsg-time').textContent = '0:00';
 }
@@ -516,7 +526,7 @@ function closeVideoMsg() {
     if (!vrec) return;
     clearInterval(vrec.timer);
     try { vrec.recorder?.state !== 'inactive' && vrec.recorder?.stop(); } catch { }
-    vrec.stream.getTracks().forEach((t) => t.stop());
+    vrec.stream.getTracks().forEach((tr) => tr.stop());
     const prev = $('videomsg-preview');
     prev.srcObject = null;
     prev.removeAttribute('src');
@@ -530,7 +540,7 @@ function videoMsgRecordToggle() {
     const btn = $('videomsg-record');
     if (!vrec.recorder || vrec.recorder.state === 'inactive') {
         const mime = pickMime(['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4']);
-        if (mime === null) { toast('Recording is not supported in this browser'); return; }
+        if (mime === null) { toast(t('chat.rec_unsupported')); return; }
         vrec.recorder = new MediaRecorder(vrec.stream, mime ? { mimeType: mime } : undefined);
         vrec.chunks = [];
         vrec.recorder.ondataavailable = (e) => { if (e.data.size) vrec.chunks.push(e.data); };
@@ -547,7 +557,7 @@ function videoMsgRecordToggle() {
             prev.muted = false;
             prev.controls = true;
             $('videomsg-send').hidden = false;
-            btn.textContent = 'Retake';
+            btn.textContent = t('chat.vm_retake');
         };
         vrec.start = Date.now();
         vrec.recorder.start(500);
@@ -555,7 +565,7 @@ function videoMsgRecordToggle() {
             $('videomsg-time').textContent = fmtDur((Date.now() - vrec.start) / 1000);
             if (Date.now() - vrec.start > 3 * 60_000) videoMsgRecordToggle(); // 3 min cap
         }, 300);
-        btn.textContent = 'Stop';
+        btn.textContent = t('chat.vm_stop');
         $('videomsg-send').hidden = true;
     } else if (vrec.recorder.state === 'recording') {
         clearInterval(vrec.timer);
@@ -571,7 +581,7 @@ function videoMsgRecordToggle() {
         vrec.blob = null;
         vrec.recorder = null;
         $('videomsg-send').hidden = true;
-        $('videomsg-record').textContent = 'Record';
+        $('videomsg-record').textContent = t('chat.vm_record');
         $('videomsg-time').textContent = '0:00';
     }
 }

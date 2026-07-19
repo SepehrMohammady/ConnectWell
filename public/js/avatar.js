@@ -5,6 +5,8 @@
 // This is a convenience, NOT a security control: anything that skips the app can
 // post whatever bytes it likes, so the server re-validates every upload itself.
 
+import { t } from './i18n.js';
+
 const AVATAR_PX = 512;
 const MAX_SOURCE_BYTES = 20 * 1024 * 1024;
 const ACCEPTED = /^image\/(jpeg|png|webp|gif|avif|heic|heif)$/i;
@@ -38,22 +40,22 @@ async function decode(file) {
         const url = URL.createObjectURL(file);
         const img = new Image();
         img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
-        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('That image could not be read')); };
+        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error(t('img.unreadable'))); };
         img.src = url;
     });
 }
 
 // Returns a square Blob ready to upload, or throws with a message fit to show.
 export async function makeAvatar(file) {
-    if (!file) throw new Error('No image selected');
-    if (file.type && !ACCEPTED.test(file.type)) throw new Error('Pick a JPEG, PNG or WebP image');
-    if (file.size > MAX_SOURCE_BYTES) throw new Error('That image is too large');
+    if (!file) throw new Error(t('img.none_selected'));
+    if (file.type && !ACCEPTED.test(file.type)) throw new Error(t('img.bad_type'));
+    if (file.size > MAX_SOURCE_BYTES) throw new Error(t('img.too_large'));
 
     const bmp = await decode(file);
     try {
         const w = bmp.width || bmp.naturalWidth;
         const h = bmp.height || bmp.naturalHeight;
-        if (!w || !h) throw new Error('That image could not be read');
+        if (!w || !h) throw new Error(t('img.unreadable'));
 
         const canvas = document.createElement('canvas');
         canvas.width = AVATAR_PX;
@@ -76,7 +78,7 @@ export async function makeAvatar(file) {
 
         const type = canEncodeWebp() ? 'image/webp' : 'image/jpeg';
         const blob = await new Promise((resolve) => canvas.toBlob(resolve, type, 0.85));
-        if (!blob) throw new Error('That image could not be processed');
+        if (!blob) throw new Error(t('img.process_failed'));
         return blob;
     } finally {
         // ImageBitmap holds decoded pixels until released; the <img> path already
