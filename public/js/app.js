@@ -36,6 +36,16 @@ async function boot() {
     }
 }
 
+// The version comes from the server (package.json) so the badge can never drift
+// from the build that is actually deployed. Year is rendered client-side.
+async function initFooter() {
+    let version = '';
+    try { version = (await api('api/health')).version || ''; }
+    catch { /* unreachable server: still show the copyright */ }
+    const label = (version ? `v${version} · ` : '') + `© ${new Date().getFullYear()} ConnectWell`;
+    for (const el of document.querySelectorAll('.app-foot')) el.textContent = label;
+}
+
 function showPending() {
     show('view-pending');
     clearInterval(pendingPoll);
@@ -593,4 +603,5 @@ $('btn-pending-logout').addEventListener('click', async () => {
     location.reload();
 });
 
+initFooter();
 boot();

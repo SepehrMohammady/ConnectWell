@@ -171,6 +171,18 @@ img, video { max-width: 100%; }
 
 .conv-list { flex: 1; overflow-y: auto; padding: 0 .5rem .8rem; }
 
+/* tiny version + copyright line — auth card, pending card, sidebar foot */
+.app-foot {
+    padding: .7rem .8rem;
+    text-align: center;
+    font-size: .7rem;
+    line-height: 1.4;
+    color: var(--muted);
+    opacity: .8;
+}
+#sidebar .app-foot { border-top: 1px solid var(--border); }
+.auth-card .app-foot { margin-top: 1.5rem; padding-bottom: 0; }
+
 .conv-item {
     display: flex; align-items: center; gap: .7rem;
     width: 100%; text-align: left;

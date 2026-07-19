@@ -71,6 +71,23 @@ npm start            # http://127.0.0.1:3010/connectwell/
 
 Requires Node >= 22.5 (uses `node:sqlite`).
 
+## Versioning
+
+Semantic versioning, starting at `0.0.1`. `package.json` is the single source of
+truth: the server reports it from `GET api/health` and the UI renders it in the
+footer, so the badge can never drift from the build that is actually deployed.
+
+Bump the version in `package.json` as part of the change itself:
+
+| Bump | When | Example |
+| --- | --- | --- |
+| **patch** `0.0.X` | Bug fix, security fix, docs, dependency upgrade, refactor with no behaviour change | `0.0.1` → `0.0.2` |
+| **minor** `0.X.0` | New feature, or a backward-compatible behaviour change | `0.0.9` → `0.1.0` |
+| **major** `X.0.0` | Breaking change to the HTTP/WS API, the storage schema, or the deploy contract | `0.9.3` → `1.0.0` |
+
+While the app is `0.x` it is pre-1.0, so the API is not frozen: a breaking change
+may land as a minor bump rather than forcing `1.0.0`.
+
 ## Deployment (IONOS VPS, no sudo needed for the app)
 
 The app lives at `~/apps/connectwell`, runs as the login user on
