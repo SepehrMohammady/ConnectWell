@@ -558,6 +558,11 @@ img, video { max-width: 100%; }
     background: var(--panel); border: 1px solid var(--border);
     border-radius: 18px; padding: 1.3rem;
     box-shadow: var(--shadow);
+    /* Content taller than the box scrolls inside it, so nothing spills out of the
+       rounded panel or off the bottom of the screen. Modals with a flex `.list`
+       child cap their own height and are unaffected. */
+    overflow-y: auto;
+    overscroll-behavior: contain;
 }
 .modal h3 { margin-bottom: .9rem; }
 .modal-row { display: flex; align-items: center; gap: .6rem; margin-top: .9rem; }
@@ -587,10 +592,12 @@ img, video { max-width: 100%; }
 .photo-actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .8rem; }
 
 .field-label {
-    display: block; margin: 1.1rem 0 .45rem;
+    display: block; margin: 1.4rem 0 .5rem;
     color: var(--muted); font-size: .74rem; font-weight: 700;
     text-transform: uppercase; letter-spacing: .05em;
 }
+/* the first section under the photo needs no extra top gap */
+.profile-head + .photo-actions + .field-label { margin-top: 1rem; }
 
 /* segmented control (theme picker) */
 .seg { display: flex; background: var(--panel-2); border-radius: 12px; padding: 4px; }
@@ -603,7 +610,9 @@ img, video { max-width: 100%; }
 .seg-compact { margin-top: 1.4rem; }
 .seg-compact .seg-opt { padding: .35rem; font-size: .8rem; }
 
-.field-hint { color: var(--muted); font-size: .82rem; line-height: 1.5; }
+/* a hint sits directly under its label; a little gap below keeps it off whatever
+   control follows (e.g. the "Enable notifications" button) */
+.field-hint { color: var(--muted); font-size: .82rem; line-height: 1.5; margin: .1rem 0 .6rem; }
 .form-note { margin-top: .9rem; font-size: .85rem; }
 .form-note.ok { color: var(--ok); }
 .form-note.bad { color: var(--danger); }
