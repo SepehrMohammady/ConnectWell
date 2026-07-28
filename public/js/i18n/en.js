@@ -87,6 +87,8 @@ export default {
     /* Calls (calls.js) */
     "call.already_in_call": "You are already in a call",
     "call.calling": "Calling…",
+    "call.swap": "Swap view",
+    "call.no_other_camera": "No other camera is available",
     "call.chip_video": "Ongoing video call · {count} in",
     "call.chip_voice": "Ongoing voice call · {count} in",
     "call.declined": "{name} declined",
@@ -171,6 +173,8 @@ export default {
     /* Stored system events. The server also writes the English sentence to
        messages.content, so rows created before these keys existed still render,
        and so does any key a newer server introduces that this build lacks. */
+    "sys.call_video": "Video call · {start} – {end} · {duration}",
+    "sys.call_voice": "Voice call · {start} – {end} · {duration}",
     "sys.group_created": "{name} created the group",
     "sys.member_added": "{actor} added {target}",
     "sys.member_left": "{name} left",
@@ -191,6 +195,7 @@ export default {
     "ui.auth.tab.signIn": "Sign in",
     "ui.call.cam": "Camera",
     "ui.call.chip.join": "Join",
+    "ui.call.flip": "Switch camera",
     "ui.call.hangup": "Hang up",
     "ui.call.mute": "Mute",
     "ui.chat.back": "Back",

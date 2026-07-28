@@ -103,6 +103,8 @@ export default {
 
     "call.already_in_call": "شما همین حالا در یک تماس هستید",
     "call.calling": "در حال تماس…",
+    "call.swap": "جابه‌جایی نما",
+    "call.no_other_camera": "دوربین دیگری در دسترس نیست",
     "call.chip_video": "تماس تصویری در جریان · {count} نفر",
     "call.chip_voice": "تماس صوتی در جریان · {count} نفر",
     "call.declined": "{name} رد کرد",
@@ -163,6 +165,8 @@ export default {
     "img.too_large": "این تصویر خیلی بزرگ است",
     "img.unreadable": "این تصویر خوانده نشد",
 
+    "sys.call_video": "تماس تصویری · {start} – {end} · {duration}",
+    "sys.call_voice": "تماس صوتی · {start} – {end} · {duration}",
     "sys.group_created": "{name} گروه را ساخت",
     "sys.member_added": "{actor}، {target} را اضافه کرد",
     "sys.member_left": "{name} خارج شد",
@@ -182,6 +186,7 @@ export default {
     "ui.auth.tagline": "پیام‌رسان خصوصی از ConnectWell",
     "ui.call.cam": "دوربین",
     "ui.call.chip.join": "پیوستن",
+    "ui.call.flip": "تعویض دوربین",
     "ui.call.hangup": "قطع تماس",
     "ui.call.mute": "بی‌صدا",
     "ui.chat.back": "بازگشت",

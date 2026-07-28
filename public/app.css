@@ -532,15 +532,29 @@ img, video { max-width: 100%; }
     background: var(--panel); min-height: 140px;
     display: flex; align-items: center; justify-content: center;
 }
-.call-tile video { width: 100%; height: 100%; object-fit: cover; position: absolute; inset: 0; }
+/* contain, not cover: show the whole frame rather than cropping the sides off a
+   portrait phone camera. The tile background fills the letterbox. */
+.call-tile video { width: 100%; height: 100%; object-fit: contain; position: absolute; inset: 0; }
 .call-tile.audio-only video { display: none; }
 .call-tile .tile-name {
     position: absolute; inset-inline-start: .6rem; bottom: .5rem;
     background: rgba(0, 0, 0, .55); border-radius: 8px;
     padding: .15rem .55rem; font-size: .78rem; z-index: 2;
 }
-.call-tile.local { position: absolute; inset-inline-end: 1rem; bottom: 6.2rem; width: 130px; height: 180px; min-height: 0; z-index: 5; box-shadow: var(--shadow); }
-.call-tile.local video { transform: scaleX(-1); }
+/* The small floating tile. Position (.pip) and the camera mirror (.mirror) are
+   separate classes on purpose: tapping the PiP swaps which stream is large, so
+   the mirror must follow the LOCAL video wherever it sits, not the corner. */
+.call-tile.pip {
+    position: absolute; inset-inline-end: 1rem; bottom: 6.2rem;
+    width: 130px; height: 180px; min-height: 0; z-index: 5;
+    box-shadow: var(--shadow); cursor: pointer;
+}
+/* The PiP is a fixed portrait box but the camera is landscape, so `contain`
+   would letterbox it down to a thin strip in a mostly-empty tile. Cropping is
+   the right call for a thumbnail; the large tiles keep `contain`. */
+.call-tile.pip video { object-fit: cover; }
+/* Front camera only — a rear-camera view must not be mirrored. */
+.call-tile.mirror video { transform: scaleX(-1); }
 .call-status { text-align: center; color: var(--muted); padding: .4rem; }
 .call-controls {
     display: flex; justify-content: center; gap: 1rem;
@@ -670,7 +684,7 @@ img, video { max-width: 100%; }
     #view-app.mobile-chat-open #chatpane { display: flex; }
     .only-mobile { display: inline-flex !important; }
     .msg-row { max-width: 88%; }
-    .call-tile.local { width: 100px; height: 140px; }
+    .call-tile.pip { width: 100px; height: 140px; }
 }
 
 /* ---------------- right-to-left ----------------
@@ -692,6 +706,6 @@ img, video { max-width: 100%; }
    monitor (which have no direction), the play triangle in the video-message
    button (transport icons are never mirrored — a left-pointing triangle reads as
    rewind), the content icons inside message bubbles, and — worst — it would
-   double-negate the self-view camera mirror on .call-tile.local video, so the
+   double-negate the self-view camera mirror on .call-tile.mirror video, so the
    caller would see themselves un-mirrored. */
 [dir="rtl"] .ic-dir { transform: scaleX(-1); }

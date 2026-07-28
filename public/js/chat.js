@@ -220,7 +220,19 @@ function bubbleContent(m) {
 // newer server than this build knows — fall back to the English sentence the
 // server also stores in `content`.
 export function sysText(m) {
-    if (m.sysKey && has(m.sysKey)) return t(m.sysKey, m.sysArgs || {});
+    if (m.sysKey && has(m.sysKey)) {
+        const a = m.sysArgs || {};
+        // Call records carry raw timestamps rather than formatted text, so each
+        // viewer sees them in their own timezone, locale and digits.
+        if ((m.sysKey === 'sys.call_video' || m.sysKey === 'sys.call_voice') && a.startedAt) {
+            return t(m.sysKey, {
+                start: fmtTime(a.startedAt),
+                end: fmtTime(a.endedAt),
+                duration: fmtDur(a.seconds),
+            });
+        }
+        return t(m.sysKey, a);
+    }
     return m.content || '';
 }
 

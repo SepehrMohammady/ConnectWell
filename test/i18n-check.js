@@ -62,6 +62,11 @@ const NEW_SINCE_BASELINE = {
     'app.notif.unsupported': 'notifications (0.8.0)',
     'app.notif.hintToast': 'notifications (0.8.0)',
     'ui.sidebar.install': 'PWA install button (0.9.0)',
+    'ui.call.flip': 'rear-camera switch (0.10.0)',
+    'call.swap': 'swap main/PiP view (0.10.0)',
+    'call.no_other_camera': 'rear-camera switch (0.10.0)',
+    'sys.call_video': 'call duration log (0.10.0)',
+    'sys.call_voice': 'call duration log (0.10.0)',
 };
 
 const en = fs.readFileSync('public/js/i18n/en.js', 'utf8');
