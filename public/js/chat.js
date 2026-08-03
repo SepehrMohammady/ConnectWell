@@ -43,6 +43,7 @@ function msgStore(convId) {
 export async function openConv(convId) {
     const conv = S.convs.get(convId);
     if (!conv) return;
+    closeFilter();   // a filter must never survive a conversation switch
     S.activeConvId = convId;
     clearTyping(); // typing state is per-open-conversation; drop stale indicators
     $('view-app').classList.add('mobile-chat-open');
@@ -69,6 +70,7 @@ export async function openConv(convId) {
 }
 
 export function closeConv() {
+    closeFilter();
     S.activeConvId = null;
     clearTyping();
     $('view-app').classList.remove('mobile-chat-open');
@@ -589,13 +591,15 @@ export function onMsgReaction(convId, messageId, reactions) {
     const m = S.msgs.get(convId)?.list.find((x) => x.id === messageId);
     if (m) m.reactions = reactions;
     if (S.activeConvId !== convId || !m) return;
-    const col = document.querySelector('#msg-list [data-mid="' + messageId + '"] .msg-col');
-    if (!col) return;
-    const existing = col.querySelector('.msg-reacts');
-    const fresh = reactionsEl(m);
-    if (existing && fresh) existing.replaceWith(fresh);
-    else if (existing) existing.remove();
-    else if (fresh) col.append(fresh);
+    // Scoped to the class, not the id: the same message can also be on screen in
+    // the filter panel, and both copies must stay in step.
+    for (const col of document.querySelectorAll('.msg-list [data-mid="' + messageId + '"] .msg-col')) {
+        const existing = col.querySelector('.msg-reacts');
+        const fresh = reactionsEl(m);
+        if (existing && fresh) existing.replaceWith(fresh);
+        else if (existing) existing.remove();
+        else if (fresh) col.append(fresh);
+    }
 }
 
 /* ---------------- incoming events ---------------- */
@@ -627,10 +631,9 @@ export function onMsgDeleted(convId, messageId) {
         if (m) { m.deleted = true; m.content = null; }
     }
     if (S.activeConvId === convId) {
-        const el = document.querySelector('#msg-list [data-mid="' + messageId + '"]');
-        if (el) {
-            const store2 = msgStore(convId);
-            const m = store2.list.find((x) => x.id === messageId);
+        const m = msgStore(convId).list.find((x) => x.id === messageId);
+        // Both the thread and the filter panel may be showing this message.
+        for (const el of document.querySelectorAll('.msg-list [data-mid="' + messageId + '"]')) {
             if (m) el.replaceWith(msgEl(m));
         }
     }
@@ -645,6 +648,10 @@ export function markRead(convId) {
     const conv = S.convs.get(convId);
     const store = S.msgs.get(convId);
     if (!conv) return;
+    // The thread is hidden behind the filter panel, so nothing is actually being
+    // read. Reporting otherwise would tell the sender it was seen — and that is
+    // what locks their ability to edit it.
+    if (filterOpen) return;
     conv.unread = 0;
     bus.emit('convs-changed');
     const lastId = store?.list[store.list.length - 1]?.id
@@ -858,6 +865,124 @@ function captionDialog(files) {
         });
         box.focus();
     });
+}
+
+/* ---------------- attachment filter ----------------
+   Results live in their own panel and their own store; the live thread is never
+   touched, so an arriving message cannot be lost behind a filter. */
+
+const FILTER_CATS = [
+    ['image', 'chat.filter_image'],
+    ['video', 'chat.filter_video'],
+    ['audio', 'chat.filter_audio'],
+    ['voice', 'chat.filter_voice'],
+    ['videomsg', 'chat.filter_videomsg'],
+    ['document', 'chat.filter_docs'],
+];
+
+let filterOpen = false;
+const fstate = { types: new Set(), from: '', to: '', loading: false };
+
+export function isFilterOpen() { return filterOpen; }
+
+export function closeFilter() {
+    if (!filterOpen) return;
+    filterOpen = false;
+    $('filter-panel').hidden = true;
+    $('msg-scroll').hidden = false;
+    $('btn-filter')?.classList.remove('active');
+    // Catch up the read position that was deliberately frozen while filtering.
+    if (S.activeConvId) markRead(S.activeConvId);
+}
+
+function openFilter() {
+    if (filterOpen) return;
+    filterOpen = true;
+    $('filter-panel').hidden = false;
+    $('msg-scroll').hidden = true;
+    $('btn-filter')?.classList.add('active');
+    renderFilterControls();
+    runFilter();
+}
+
+// Local day boundaries, resolved by the browser. The constructor normalises a
+// day overflow and re-resolves the offset, so this stays correct across DST —
+// parsing 'YYYY-MM-DD' directly would be UTC and shift the range for everyone
+// not on UTC.
+function dayStart(v) {
+    if (!v) return null;
+    const [y, m, d] = v.split('-').map(Number);
+    return y ? new Date(y, m - 1, d).getTime() : null;
+}
+function dayAfter(v) {
+    if (!v) return null;
+    const [y, m, d] = v.split('-').map(Number);
+    return y ? new Date(y, m - 1, d + 1).getTime() : null;
+}
+
+function renderFilterControls() {
+    const box = $('filter-controls');
+    box.textContent = '';
+    const chips = h('div', { class: 'filter-chips' });
+    for (const [type, key] of FILTER_CATS) {
+        chips.append(h('button', {
+            class: 'admin-tab' + (fstate.types.has(type) ? ' active' : ''),
+            type: 'button', text: t(key),
+            onclick: () => {
+                if (fstate.types.has(type)) fstate.types.delete(type);
+                else fstate.types.add(type);
+                renderFilterControls();
+                runFilter();
+            },
+        }));
+    }
+    box.append(chips);
+
+    const from = h('input', { type: 'date', value: fstate.from, 'aria-label': t('chat.filter_from') });
+    const to = h('input', { type: 'date', value: fstate.to, 'aria-label': t('chat.filter_to') });
+    from.addEventListener('change', () => { fstate.from = from.value; runFilter(); });
+    to.addEventListener('change', () => { fstate.to = to.value; runFilter(); });
+    box.append(h('div', { class: 'filter-dates' }, [
+        h('span', { class: 'muted', text: t('chat.filter_from') }), from,
+        h('span', { class: 'muted', text: t('chat.filter_to') }), to,
+        h('button', {
+            class: 'btn small ghost', type: 'button', text: t('chat.filter_clear'),
+            onclick: () => { fstate.types.clear(); fstate.from = ''; fstate.to = ''; renderFilterControls(); runFilter(); },
+        }),
+        h('button', { class: 'btn small', type: 'button', text: t('chat.close'), onclick: closeFilter }),
+    ]));
+}
+
+async function runFilter() {
+    const convId = S.activeConvId;
+    const list = $('filter-list');
+    if (!convId) return;
+    fstate.loading = true;
+    const q = new URLSearchParams();
+    if (fstate.types.size) q.set('types', [...fstate.types].join(','));
+    const from = dayStart(fstate.from);
+    const to = dayAfter(fstate.to);
+    if (from) q.set('from', String(from));
+    if (to) q.set('to', String(to));
+    q.set('limit', '60');
+    try {
+        const { messages } = await api('api/conversations/' + convId + '/messages/filter?' + q.toString());
+        if (S.activeConvId !== convId || !filterOpen) return;
+        list.textContent = '';
+        if (!messages.length) {
+            list.append(h('p', { class: 'muted', text: t('chat.filter_empty') }));
+        } else {
+            let prev = 0;
+            for (const m of messages) {
+                if (!prev || !sameDay(prev, m.createdAt)) {
+                    list.append(h('div', { class: 'day-sep', text: fmtDay(m.createdAt) }));
+                }
+                prev = m.createdAt;
+                list.append(msgEl(m));
+            }
+        }
+    } catch (e) { toast(e.message); }
+    fstate.loading = false;
 }
 
 /* ---------------- drag and drop ---------------- */

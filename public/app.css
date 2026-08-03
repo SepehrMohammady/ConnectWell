@@ -738,3 +738,18 @@ img, video { max-width: 100%; }
    double-negate the self-view camera mirror on .call-tile.mirror video, so the
    caller would see themselves un-mirrored. */
 [dir="rtl"] .ic-dir { transform: scaleX(-1); }
+
+/* ---------------- attachment filter ---------------- */
+.filter-panel { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.filter-controls {
+    padding: .6rem .9rem; border-bottom: 1px solid var(--border);
+    display: flex; flex-direction: column; gap: .5rem; background: var(--panel);
+}
+.filter-chips { display: flex; flex-wrap: wrap; gap: .4rem; }
+.filter-dates { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; font-size: .85rem; }
+.filter-dates input[type="date"] {
+    background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+    border-radius: 10px; padding: .3rem .5rem;
+}
+.filter-list { flex: 1; overflow-y: auto; padding: 1rem .9rem; }
+.icon-btn.active { background: var(--panel-3); color: var(--accent); }

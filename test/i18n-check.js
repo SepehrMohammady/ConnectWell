@@ -80,6 +80,17 @@ const NEW_SINCE_BASELINE = {
     'chat.caption_title': 'file captions (0.12.0)',
     'chat.drop_here': 'drag and drop (0.12.0)',
     'chat.no_folders': 'drag and drop (0.12.0)',
+    'chat.filter_image': 'attachment filter (0.13.0)',
+    'chat.filter_video': 'attachment filter (0.13.0)',
+    'chat.filter_audio': 'attachment filter (0.13.0)',
+    'chat.filter_voice': 'attachment filter (0.13.0)',
+    'chat.filter_videomsg': 'attachment filter (0.13.0)',
+    'chat.filter_docs': 'attachment filter (0.13.0)',
+    'chat.filter_from': 'attachment filter (0.13.0)',
+    'chat.filter_to': 'attachment filter (0.13.0)',
+    'chat.filter_clear': 'attachment filter (0.13.0)',
+    'chat.filter_empty': 'attachment filter (0.13.0)',
+    'ui.chat.filter': 'attachment filter (0.13.0)',
     'chat.too_many_files': 'drag and drop (0.12.0)',
 };
 
