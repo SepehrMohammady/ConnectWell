@@ -12,6 +12,10 @@ const FILE_SVG = 'M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-
 const REACT_SVG = 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z';
 const FWD_SVG = 'M14 9V5l7 7-7 7v-4.1c-5 0-8.5 1.6-11 5.1 1-5 4-10 11-11z';
 const DL_SVG = 'M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z';
+const CLOSE_SVG = 'M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z';
+const EDIT_SVG = 'M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z';
+// Mirrors the server rule in lib/api.js; the server is still the authority.
+const EDIT_WINDOW_MS = 7 * 86400_000;
 
 // Must match REACTIONS in lib/util.js exactly (the server rejects anything else).
 const REACTIONS = ['👍', '👎', '❤️', '😂', '😢', '🙏', '👏', '🎉', '😮', '😡'];
@@ -266,7 +270,13 @@ function msgEl(m) {
         bubble.append(t('chat.msg_deleted'));
     } else {
         bubble.append(bubbleContent(m));
-        bubble.append(h('span', { class: 'meta', text: fmtTime(m.createdAt) }));
+        const meta = h('span', { class: 'meta', text: fmtTime(m.createdAt) });
+        if (m.editedAt) meta.insertBefore(h('span', { class: 'edited', text: t('chat.edited') + ' ' }), meta.firstChild);
+        bubble.append(meta);
+        // Always present on own messages, even when nobody has read it yet, so a
+        // read arriving later only ever mutates an existing node — re-rendering
+        // the bubble would restart a playing voice note or video.
+        if (mine && m.type !== 'system') meta.append(seenTickEl(m));
         if (mine) {
             const del = h('button', { class: 'msg-del', title: t('chat.del_title'), type: 'button', text: '✕' });
             del.addEventListener('click', async () => {
@@ -318,6 +328,66 @@ function reactionsEl(m) {
     return wrap;
 }
 
+/* ---------------- read receipts ---------------- */
+
+// Who was in the room when this was sent, excluding its author. joinMsgId keeps
+// somebody added later out of the audience — they were never expected to read it.
+function audienceFor(m) {
+    const conv = S.convs.get(m.conversationId);
+    if (!conv || !Array.isArray(conv.reads)) return [];
+    return conv.reads.filter((r) => r.userId !== m.senderId && (r.joinMsgId || 0) < m.id);
+}
+
+function seenState(m) {
+    const audience = audienceFor(m);
+    const by = audience.filter((r) => r.lastReadId >= m.id);
+    // m.seen is the server's sticky flag: it survives a member leaving, which
+    // would otherwise erase them from the vector and walk the tick backwards.
+    const any = by.length > 0 || !!m.seen;
+    return { total: audience.length, count: by.length, any, all: audience.length > 0 && by.length >= audience.length, by };
+}
+
+function seenTickEl(m) {
+    const conv = S.convs.get(m.conversationId);
+    const st = seenState(m);
+    const group = conv?.type === 'group';
+    const tick = h('span', {
+        class: 'msg-tick' + (st.all || (!group && st.any) ? ' seen' : ''),
+        // A single tick means delivered, a double means read — the convention
+        // people already know from other messengers.
+        text: (st.any ? '✓✓' : '✓') + (group && st.total > 1 ? ' ' + st.count + '/' + st.total : ''),
+    });
+    if (group && st.count) {
+        const names = st.by.map((r) => userName(r.userId));
+        tick.title = t('chat.seen_by', { names: names.join(', ') });
+    } else {
+        tick.title = st.any ? t('chat.seen') : t('chat.sent');
+    }
+    return tick;
+}
+
+// A read moved: refresh only the ticks, never the bubbles.
+export function onRead(convId, userId, lastReadId) {
+    const conv = S.convs.get(convId);
+    if (conv && Array.isArray(conv.reads)) {
+        const row = conv.reads.find((r) => r.userId === userId);
+        // Monotonic: a stale conv:updated snapshot must not walk it backwards.
+        if (row) row.lastReadId = Math.max(row.lastReadId, lastReadId);
+        else conv.reads.push({ userId, lastReadId, joinMsgId: 0 });
+    }
+    const store = S.msgs.get(convId);
+    if (store) for (const m of store.list) if (m.id <= lastReadId && m.senderId !== userId) m.seen = true;
+    if (S.activeConvId !== convId || !store) return;
+    for (const el of document.querySelectorAll('.msg-list [data-mid]')) {
+        const id = Number(el.dataset.mid);
+        if (!id || id > lastReadId) continue;
+        const m = store.list.find((x) => x.id === id);
+        if (!m || m.senderId !== S.me.id) continue;
+        const old = el.querySelector('.msg-tick');
+        if (old) old.replaceWith(seenTickEl(m));
+    }
+}
+
 /* ---------------- per-message actions ---------------- */
 
 function msgActions(m, mine) {
@@ -328,6 +398,15 @@ function msgActions(m, mine) {
         rb.append(svgIcon(REACT_SVG));
         rb.addEventListener('click', (e) => { e.stopPropagation(); openReactionPicker(rb, m); });
         acts.append(rb);
+    }
+    // Editing closes the moment anyone reads it, so the control simply stops
+    // being offered — the server refuses regardless.
+    if (mine && !m.purged && !m.seen && m.type !== 'system'
+        && Date.now() - m.createdAt < EDIT_WINDOW_MS) {
+        const eb = h('button', { class: 'msg-act', title: t('chat.edit'), type: 'button' });
+        eb.append(svgIcon(EDIT_SVG));
+        eb.addEventListener('click', (e) => { e.stopPropagation(); editModal(m); });
+        acts.append(eb);
     }
     // A purged message has nothing left to forward or save.
     if (!m.purged) {
@@ -345,6 +424,72 @@ function msgActions(m, mine) {
         }
     }
     return acts.children.length ? acts : null;
+}
+
+function editModal(m) {
+    const root = $('modal-root');
+    root.textContent = '';
+    const modal = h('div', { class: 'modal' });
+    root.append(modal);
+    root.hidden = false;
+    const close = () => { root.hidden = true; root.textContent = ''; root.onclick = null; };
+    root.onclick = (e) => { if (e.target === root) close(); };
+
+    modal.append(h('h3', { text: t('chat.edit') }));
+    const box = h('textarea', { class: 'edit-box', rows: '4', maxlength: '4000' });
+    box.value = m.content || '';
+    modal.append(box);
+    modal.append(h('div', { class: 'modal-row' }, [
+        h('div', { class: 'rec-spacer' }),
+        h('button', { class: 'btn small ghost', type: 'button', text: t('chat.edit_cancel'), onclick: close }),
+        h('button', {
+            class: 'btn small', type: 'button', text: t('chat.edit_save'),
+            onclick: async (e) => {
+                e.currentTarget.disabled = true;
+                try {
+                    await api('api/messages/' + m.id, { method: 'PATCH', body: { content: box.value } });
+                    close();
+                } catch (err) { toast(err.message); e.currentTarget.disabled = false; }
+            },
+        }),
+    ]));
+    box.focus();
+}
+
+// Replace only the text and the edited marker: re-rendering the bubble would
+// restart a playing voice note or video attached to the same message.
+export function onMsgEdited(message) {
+    const convId = message.conversationId;
+    const store = S.msgs.get(convId);
+    const m = store?.list.find((x) => x.id === message.id);
+    if (m) { m.content = message.content; m.editedAt = message.editedAt; }
+    if (S.activeConvId !== convId || !m) return;
+    for (const el of document.querySelectorAll('.msg-list [data-mid="' + message.id + '"]')) {
+        const bubble = el.querySelector('.bubble');
+        if (!bubble) continue;
+        if (m.type === 'text') {
+            const meta = bubble.querySelector('.meta');
+            // Rebuild just the linkified text ahead of the metadata line.
+            for (const node of [...bubble.childNodes]) {
+                if (node === meta || (node.classList && (node.classList.contains('meta')
+                    || node.classList.contains('msg-del') || node.classList.contains('sender')
+                    || node.classList.contains('fwd-tag')))) continue;
+                node.remove();
+            }
+            bubble.insertBefore(linkify(m.content || ''), meta || null);
+        } else {
+            const cap = bubble.querySelector('.msg-caption');
+            if (cap) cap.textContent = m.content || '';
+        }
+        markEdited(bubble, m);
+    }
+}
+
+function markEdited(bubble, m) {
+    if (!m.editedAt) return;
+    const meta = bubble.querySelector('.meta');
+    if (!meta || meta.querySelector('.edited')) return;
+    meta.insertBefore(h('span', { class: 'edited', text: t('chat.edited') + ' ' }), meta.firstChild);
 }
 
 function forwardModal(m) {
@@ -482,6 +627,11 @@ export function onMsgDeleted(convId, messageId) {
     }
 }
 
+// Remembers what was last reported per conversation. markRead fires on open, on
+// focus and on every arriving message, so without this a busy group would post —
+// and broadcast — a read event several times a second.
+const sentRead = new Map();
+
 export function markRead(convId) {
     const conv = S.convs.get(convId);
     const store = S.msgs.get(convId);
@@ -490,7 +640,10 @@ export function markRead(convId) {
     bus.emit('convs-changed');
     const lastId = store?.list[store.list.length - 1]?.id
         || conv.lastMessage?.id || 0;
-    if (lastId) api('api/conversations/' + convId + '/read', { method: 'POST', body: { messageId: lastId } }).catch(() => { });
+    if (!lastId || (sentRead.get(convId) || 0) >= lastId) return;
+    sentRead.set(convId, lastId);
+    api('api/conversations/' + convId + '/read', { method: 'POST', body: { messageId: lastId } })
+        .catch(() => { sentRead.delete(convId); });   // let a failed report retry
 }
 
 // After a WS reconnect, pull any messages that arrived in the open conversation
@@ -791,17 +944,38 @@ function sendVideoMsg() {
 
 /* ---------------- lightbox ---------------- */
 
+function closeLightbox() {
+    $('lightbox').hidden = true;
+    document.removeEventListener('keydown', onLightboxKey, true);
+}
+function onLightboxKey(e) { if (e.key === 'Escape') closeLightbox(); }
+
 function showLightbox(src, name) {
     const lb = $('lightbox');
     lb.textContent = '';
     lb.append(h('img', { src, alt: '' }));
-    // Save without leaving the viewer; stopPropagation so the click does not
-    // fall through to the backdrop dismiss.
-    const dl = h('a', { class: 'lightbox-dl', href: src, download: name || 'image', title: t('chat.download') });
+
+    // Save without leaving the viewer. stopPropagation on both controls so the
+    // click does not fall through to the backdrop, which dismisses.
+    const dl = h('a', {
+        class: 'lightbox-btn lightbox-dl', href: src,
+        download: name || 'image', title: t('chat.download'),
+    });
     dl.append(svgIcon(DL_SVG));
     dl.addEventListener('click', (e) => e.stopPropagation());
-    lb.append(dl);
+
+    // Explicit close, for anyone who does not realise the backdrop is tappable —
+    // on a wide image there is barely any backdrop left to tap.
+    const close = h('button', {
+        class: 'lightbox-btn lightbox-close', type: 'button',
+        title: t('chat.close'), 'aria-label': t('chat.close'),
+    });
+    close.append(svgIcon(CLOSE_SVG));
+    close.addEventListener('click', (e) => { e.stopPropagation(); closeLightbox(); });
+
+    lb.append(h('div', { class: 'lightbox-tools' }, [dl, close]));
     lb.hidden = false;
+    document.addEventListener('keydown', onLightboxKey, true);
 }
 
 /* ---------------- init ---------------- */
@@ -838,7 +1012,7 @@ export function initChat() {
 
     $('btn-back').addEventListener('click', closeConv);
     $('msg-scroll').addEventListener('scroll', maybeLoadOlder);
-    $('lightbox').addEventListener('click', () => { $('lightbox').hidden = true; });
+    $('lightbox').addEventListener('click', closeLightbox);
 
     document.addEventListener('visibilitychange', () => {
         if (!document.hidden && S.activeConvId) markRead(S.activeConvId);

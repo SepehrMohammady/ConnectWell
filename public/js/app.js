@@ -8,7 +8,7 @@ import {
 } from './core.js';
 import {
     initChat, openConv, closeConv, renderHeader, onMsgNew, onMsgDeleted, onTyping, markRead, reconcileActive,
-    sysText, onMsgReaction,
+    sysText, onMsgReaction, onRead, onMsgEdited,
 } from './chat.js';
 import {
     initCalls, onCallState, onCallRing, onCallDeclined, onCallEnded, onRtc, updateChip,
@@ -336,6 +336,13 @@ const EVENTS = {
         renderConvList();
     },
     'msg:reaction'(d) { onMsgReaction(d.convId, d.messageId, d.reactions); },
+    read(d) { onRead(d.convId, d.userId, d.lastReadId); },
+    'msg:edited'(d) {
+        const conv = S.convs.get(d.message.conversationId);
+        if (conv?.lastMessage?.id === d.message.id) conv.lastMessage = d.message;
+        onMsgEdited(d.message);
+        renderConvList();
+    },
     'conv:new'(d) {
         S.convs.set(d.conversation.id, d.conversation);
         renderConvList();
@@ -343,7 +350,14 @@ const EVENTS = {
     'conv:updated'(d) {
         const conv = S.convs.get(d.conversation.id);
         const unread = conv?.unread || 0;
-        S.convs.set(d.conversation.id, { ...d.conversation, unread });
+        // Merge read positions forward. This payload was built server-side a
+        // moment ago and can land after a newer read event, which would otherwise
+        // walk a settled tick backwards.
+        const reads = (d.conversation.reads || []).map((r) => {
+            const had = conv?.reads?.find((x) => x.userId === r.userId);
+            return had ? { ...r, lastReadId: Math.max(had.lastReadId, r.lastReadId) } : r;
+        });
+        S.convs.set(d.conversation.id, { ...d.conversation, unread, reads });
         renderConvList();
         if (S.activeConvId === d.conversation.id) renderHeader();
     },

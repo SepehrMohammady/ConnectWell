@@ -350,6 +350,17 @@ img, video { max-width: 100%; }
 }
 .bubble.deleted { font-style: italic; color: var(--muted); }
 
+/* delivered / read marker on your own messages */
+.edited { font-style: italic; opacity: .75; }
+.edit-box {
+    width: 100%; min-height: 5rem; resize: vertical;
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 12px; padding: .65rem 1rem; outline: none;
+}
+.edit-box:focus { border-color: var(--accent-deep); }
+.msg-tick { margin-inline-start: .3rem; opacity: .55; white-space: nowrap; }
+.msg-tick.seen { opacity: 1; color: var(--accent); }
+
 .bubble img.msg-img {
     display: block; border-radius: 10px; max-height: 320px; cursor: zoom-in; margin: .15rem 0;
 }
@@ -650,14 +661,20 @@ img, video { max-width: 100%; }
     cursor: zoom-out; padding: 1rem;
 }
 .lightbox img { max-width: 100%; max-height: 100%; border-radius: 8px; }
-.lightbox-dl {
+/* Laid out by flex rather than two hand-tuned absolute offsets: at a small root
+   font-size the fixed 4.2rem gap is narrower than the 44px buttons and they
+   overlap. Close sits in the conventional corner, save inboard of it. */
+.lightbox-tools {
     position: absolute; top: 1rem; inset-inline-end: 1rem;
-    width: 44px; height: 44px; border-radius: 50%;
+    display: flex; gap: .6rem; z-index: 2;
+}
+.lightbox-btn {
+    width: 44px; height: 44px; border-radius: 50%; flex: none;
     display: flex; align-items: center; justify-content: center;
     background: var(--panel); color: var(--text);
     box-shadow: var(--shadow); cursor: pointer;
 }
-.lightbox-dl svg { width: 22px; height: 22px; fill: currentColor; }
+.lightbox-btn svg { width: 22px; height: 22px; fill: currentColor; }
 
 .toast {
     position: fixed; bottom: 1.4rem; left: 50%; transform: translateX(-50%);

@@ -1,6 +1,6 @@
 {
   "name": "connectwell",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "private": true,
   "description": "ConnectWell — minimal private messenger with audio/video calls, by ConnectWell",
   "author": "Sepehr Mohammady",

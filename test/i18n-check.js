@@ -67,6 +67,14 @@ const NEW_SINCE_BASELINE = {
     'call.no_other_camera': 'rear-camera switch (0.10.0)',
     'sys.call_video': 'call duration log (0.10.0)',
     'sys.call_voice': 'call duration log (0.10.0)',
+    'chat.close': 'lightbox close button (0.11.0)',
+    'chat.sent': 'read receipts (0.11.0)',
+    'chat.seen': 'read receipts (0.11.0)',
+    'chat.seen_by': 'read receipts (0.11.0)',
+    'chat.edit': 'message editing (0.11.0)',
+    'chat.edit_cancel': 'message editing (0.11.0)',
+    'chat.edit_save': 'message editing (0.11.0)',
+    'chat.edited': 'message editing (0.11.0)',
 };
 
 const en = fs.readFileSync('public/js/i18n/en.js', 'utf8');
