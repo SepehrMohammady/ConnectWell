@@ -427,6 +427,12 @@ img, video { max-width: 100%; }
     unicode-bidi: isolate;   /* keep the tag intact in an RTL bubble */
 }
 
+.del-req {
+    display: flex; align-items: center; flex-wrap: wrap; gap: .4rem;
+    margin-top: .3rem; padding: .35rem .6rem;
+    background: var(--danger-tint); border: 1px solid var(--danger);
+    border-radius: 12px; font-size: .8rem; color: var(--text);
+}
 .msg-reacts { display: flex; flex-wrap: wrap; gap: .25rem; margin-top: .25rem; }
 .react-chip {
     display: inline-flex; align-items: center; gap: .2rem;

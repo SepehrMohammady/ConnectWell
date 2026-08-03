@@ -91,6 +91,13 @@ const NEW_SINCE_BASELINE = {
     'chat.filter_clear': 'attachment filter (0.13.0)',
     'chat.filter_empty': 'attachment filter (0.13.0)',
     'ui.chat.filter': 'attachment filter (0.13.0)',
+    'chat.del_confirm_ask': 'deletion consent (0.14.0)',
+    'chat.del_asked': 'deletion consent (0.14.0)',
+    'chat.del_pending': 'deletion consent (0.14.0)',
+    'chat.del_asks': 'deletion consent (0.14.0)',
+    'chat.del_allow': 'deletion consent (0.14.0)',
+    'chat.del_keep': 'deletion consent (0.14.0)',
+    'chat.del_denied': 'deletion consent (0.14.0)',
     'chat.too_many_files': 'drag and drop (0.12.0)',
 };
 

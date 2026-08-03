@@ -77,6 +77,15 @@ server.listen(config.PORT, config.HOST, () => {
     console.log(`ConnectWell v${require('./package.json').version} on http://${config.HOST}:${config.PORT}${B}/`);
 });
 
+// Pending deletion requests expire rather than lingering. Requests are also
+// expired lazily wherever they are read, because a deploy restarts this timer.
+{
+    const deletions = require('./lib/deletions');
+    const sweep = () => { try { deletions.expireDue(); } catch (err) { console.error('deletion sweep:', err); } };
+    setTimeout(sweep, 20_000).unref();
+    setInterval(sweep, 3600_000).unref();
+}
+
 // Shared-file retention. Runs on a timer, well after boot so a restart storm
 // cannot stack sweeps. unref() so it never holds the process open, and every
 // call is wrapped: housekeeping must not be able to take the server down.

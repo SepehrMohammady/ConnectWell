@@ -8,7 +8,7 @@ import {
 } from './core.js';
 import {
     initChat, openConv, closeConv, renderHeader, onMsgNew, onMsgDeleted, onTyping, markRead, reconcileActive,
-    sysText, onMsgReaction, onRead, onMsgEdited,
+    sysText, onMsgReaction, onRead, onMsgEdited, onDelReq, primeDelReqs,
 } from './chat.js';
 import {
     initCalls, onCallState, onCallRing, onCallDeclined, onCallEnded, onRtc, updateChip,
@@ -248,6 +248,7 @@ function applyBootstrap(data) {
     S.convs = new Map(data.conversations.map((c) => [c.id, c]));
     S.online = new Set(data.online);
     S.calls = new Map(data.calls.map((c) => [c.convId, c]));
+    primeDelReqs(data.deleteRequests);
     if (S.activeConvId && !S.convs.has(S.activeConvId)) closeConv();
 }
 
@@ -337,6 +338,7 @@ const EVENTS = {
     },
     'msg:reaction'(d) { onMsgReaction(d.convId, d.messageId, d.reactions); },
     read(d) { onRead(d.convId, d.userId, d.lastReadId); },
+    'msg:delreq'(d) { onDelReq(d.request); },
     'msg:edited'(d) {
         const conv = S.convs.get(d.message.conversationId);
         if (conv?.lastMessage?.id === d.message.id) conv.lastMessage = d.message;

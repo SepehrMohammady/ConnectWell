@@ -291,9 +291,17 @@ function msgEl(m) {
         if (mine) {
             const del = h('button', { class: 'msg-del', title: t('chat.del_title'), type: 'button', text: '✕' });
             del.addEventListener('click', async () => {
-                if (!confirm(t('chat.del_confirm'))) return;
+                // Once read, removing it takes the reader's agreement — so the
+                // prompt says which of the two is about to happen.
+                const asks = !!m.seen;
+                if (!confirm(asks ? t('chat.del_confirm_ask') : t('chat.del_confirm'))) return;
+                if (asks) return requestDelete(m);
                 try { await api('api/messages/' + m.id, { method: 'DELETE' }); }
-                catch (e) { toast(e.message); }
+                catch (e) {
+                    // Somebody read it between rendering and clicking.
+                    if (e.status === 409) return requestDelete(m);
+                    toast(e.message);
+                }
             });
             bubble.append(del);
         }
@@ -304,6 +312,8 @@ function msgEl(m) {
     col.append(bubble);
     const reacts = reactionsEl(m);
     if (reacts) col.append(reacts);
+    const dreq = m.deleted ? null : delReqEl(m);
+    if (dreq) col.append(dreq);
 
     const acts = m.deleted ? null : msgActions(m, mine);
     // Own messages sit at the inline end, so their actions go on the inner side.
@@ -337,6 +347,73 @@ function reactionsEl(m) {
         wrap.append(chip);
     }
     return wrap;
+}
+
+/* ---------------- deletion requests ----------------
+   Deleting a message somebody has read takes their agreement. The server owns
+   the rules; this renders the pending state and collects the answer. */
+
+// messageId -> request, kept in step by the msg:delreq broadcast.
+const delReqs = new Map();
+
+export function primeDelReqs(list) {
+    delReqs.clear();
+    for (const r of list || []) delReqs.set(r.messageId, r);
+}
+
+export function onDelReq(request) {
+    if (request.state === 'pending') delReqs.set(request.messageId, request);
+    else delReqs.delete(request.messageId);
+    // Repaint just this message wherever it is rendered.
+    const store = S.msgs.get(request.convId);
+    const m = store?.list.find((x) => x.id === request.messageId);
+    if (!m) return;
+    for (const el of document.querySelectorAll('.msg-list [data-mid="' + request.messageId + '"]')) {
+        el.replaceWith(msgEl(m));
+    }
+    if (request.state === 'denied' && m.senderId === S.me.id) toast(t('chat.del_denied'));
+}
+
+async function requestDelete(m) {
+    try {
+        const r = await api('api/messages/' + m.id + '/delete-request', { method: 'POST' });
+        if (r.deleted) return;                 // nobody had actually seen it
+        toast(t('chat.del_asked'));
+    } catch (e) { toast(e.message); }
+}
+
+async function voteDelete(m, approve) {
+    try { await api('api/messages/' + m.id + '/delete-request/vote', { method: 'POST', body: { approve } }); }
+    catch (e) { toast(e.message); }
+}
+
+// The strip shown under a message with an open request. Its three audiences see
+// three different things: the sender waits, an approver is asked, everyone else
+// is told nothing at all.
+function delReqEl(m) {
+    const req = delReqs.get(m.id);
+    if (!req) return null;
+    const mine = m.senderId === S.me.id;
+    const box = h('div', { class: 'del-req' });
+    if (mine) {
+        box.append(h('span', {
+            text: t('chat.del_pending', { done: req.approved + req.waived, total: req.total }),
+        }));
+        return box;
+    }
+    // Only a frozen approver who has not answered is asked; the server rejects
+    // anyone else regardless.
+    if (!(req.pending || []).includes(S.me.id)) return null;
+    box.append(h('span', { text: t('chat.del_asks') }));
+    box.append(h('button', {
+        class: 'btn small ghost', type: 'button', text: t('chat.del_keep'),
+        onclick: () => voteDelete(m, false),
+    }));
+    box.append(h('button', {
+        class: 'btn small danger', type: 'button', text: t('chat.del_allow'),
+        onclick: () => voteDelete(m, true),
+    }));
+    return box;
 }
 
 /* ---------------- read receipts ---------------- */
