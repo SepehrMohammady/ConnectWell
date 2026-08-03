@@ -464,6 +464,18 @@ img, video { max-width: 100%; }
 .progress { height: 4px; background: var(--track); border-radius: 2px; overflow: hidden; width: 200px; }
 .progress i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .2s; }
 
+/* drop affordance, over the whole chat pane */
+.drop-zone {
+    position: absolute; inset: 0; z-index: 30;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--accent-tint);
+    border: 2px dashed var(--accent-deep); border-radius: 14px;
+    margin: .5rem; pointer-events: none;
+    font-weight: 600; color: var(--text);
+}
+#chatpane { position: relative; }
+.msg-caption { margin-top: .25rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+
 .typing-line { padding: 0 1.2rem .3rem; color: var(--muted); font-size: .8rem; font-style: italic; }
 
 /* Retention notice above the composer. Informational, so it borrows the call

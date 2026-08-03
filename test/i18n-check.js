@@ -75,6 +75,12 @@ const NEW_SINCE_BASELINE = {
     'chat.edit_cancel': 'message editing (0.11.0)',
     'chat.edit_save': 'message editing (0.11.0)',
     'chat.edited': 'message editing (0.11.0)',
+    'chat.caption_placeholder': 'file captions (0.12.0)',
+    'chat.caption_send': 'file captions (0.12.0)',
+    'chat.caption_title': 'file captions (0.12.0)',
+    'chat.drop_here': 'drag and drop (0.12.0)',
+    'chat.no_folders': 'drag and drop (0.12.0)',
+    'chat.too_many_files': 'drag and drop (0.12.0)',
 };
 
 const en = fs.readFileSync('public/js/i18n/en.js', 'utf8');

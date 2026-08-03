@@ -16,6 +16,9 @@ const CLOSE_SVG = 'M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41
 const EDIT_SVG = 'M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z';
 // Mirrors the server rule in lib/api.js; the server is still the authority.
 const EDIT_WINDOW_MS = 7 * 86400_000;
+// Mirrors MAX_CAPTION_LEN in lib/util.js — stops an over-long caption before a
+// long upload rather than truncating it after the bytes have crossed.
+const MAX_CAPTION_LEN = 500;
 
 // Must match REACTIONS in lib/util.js exactly (the server rejects anything else).
 const REACTIONS = ['👍', '👎', '❤️', '😂', '😢', '🙏', '👏', '🎉', '😮', '😡'];
@@ -270,6 +273,12 @@ function msgEl(m) {
         bubble.append(t('chat.msg_deleted'));
     } else {
         bubble.append(bubbleContent(m));
+        // A caption is a SIBLING of the media, never inside bubbleContent: that
+        // returns early for a purged file, and its media error handlers replace
+        // their whole element, either of which would take the caption with it.
+        if (m.type !== 'text' && m.type !== 'system' && m.content) {
+            bubble.append(h('div', { class: 'msg-caption', dir: 'auto', text: m.content }));
+        }
         const meta = h('span', { class: 'meta', text: fmtTime(m.createdAt) });
         if (m.editedAt) meta.insertBefore(h('span', { class: 'edited', text: t('chat.edited') + ' ' }), meta.firstChild);
         bubble.append(meta);
@@ -756,7 +765,7 @@ function autosize() {
 
 /* ---------------- uploads ---------------- */
 
-async function uploadBlob(blob, { fileName, mime, msgType, duration }) {
+async function uploadBlob(blob, { fileName, mime, msgType, duration, caption }) {
     const convId = S.activeConvId;
     if (!convId) return;
     const list = $('msg-list');
@@ -771,7 +780,7 @@ async function uploadBlob(blob, { fileName, mime, msgType, duration }) {
     scrollBottom();
     try {
         const { message } = await upload(convId, blob, {
-            fileName, mime, msgType, duration,
+            fileName, mime, msgType, duration, caption,
             onProgress: (f) => { bar.style.width = Math.round(f * 100) + '%'; },
         });
         temp.remove();
@@ -783,10 +792,119 @@ async function uploadBlob(blob, { fileName, mime, msgType, duration }) {
     }
 }
 
-function onFilesPicked(files) {
-    for (const f of files) {
-        uploadBlob(f, { fileName: f.name, mime: f.type || 'application/octet-stream' });
+// Uploading N files at once races the per-user upload rate limit, so they go one
+// at a time; the cap keeps a fat folder drop from spending the whole allowance.
+const MAX_BATCH = 10;
+
+async function onFilesPicked(files) {
+    const picked = [...files].slice(0, MAX_BATCH);
+    if (!picked.length) return;
+    if (files.length > MAX_BATCH) toast(t('chat.too_many_files', { n: MAX_BATCH }));
+    showAttachNote();
+    const caption = await captionDialog(picked);
+    if (caption === null) return;               // cancelled
+    for (const f of picked) {
+        // The caption belongs to the batch's first file; repeating it on each
+        // would read as spam in the thread.
+        await uploadBlob(f, {
+            fileName: f.name,
+            mime: f.type || 'application/octet-stream',
+            caption: f === picked[0] ? caption : '',
+        });
     }
+}
+
+// Resolves to the caption text (possibly empty), or null if cancelled.
+function captionDialog(files) {
+    return new Promise((resolve) => {
+        const root = $('modal-root');
+        root.textContent = '';
+        const modal = h('div', { class: 'modal' });
+        root.append(modal);
+        root.hidden = false;
+        let done = false;
+        const finish = (val) => {
+            if (done) return;
+            done = true;
+            root.hidden = true; root.textContent = ''; root.onclick = null;
+            resolve(val);
+        };
+        root.onclick = (e) => { if (e.target === root) finish(null); };
+
+        modal.append(h('h3', { text: t('chat.caption_title', { n: files.length }) }));
+        const list = h('div', { class: 'list' });
+        for (const f of files) {
+            list.append(h('div', { class: 'user-row' }, [
+                h('div', { class: 'u-mid' }, [
+                    h('div', { class: 'u-name', dir: 'auto', text: f.name }),
+                    h('div', { class: 'u-sub', text: fmtSize(f.size) }),
+                ]),
+            ]));
+        }
+        modal.append(list);
+
+        const box = h('input', {
+            type: 'text', maxlength: String(MAX_CAPTION_LEN),
+            placeholder: t('chat.caption_placeholder'),
+        });
+        modal.append(box);
+        modal.append(h('div', { class: 'modal-row' }, [
+            h('div', { class: 'rec-spacer' }),
+            h('button', { class: 'btn small ghost', type: 'button', text: t('chat.edit_cancel'), onclick: () => finish(null) }),
+            h('button', { class: 'btn small', type: 'button', text: t('chat.caption_send'), onclick: () => finish(box.value.trim()) }),
+        ]));
+        box.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); finish(box.value.trim()); }
+        });
+        box.focus();
+    });
+}
+
+/* ---------------- drag and drop ---------------- */
+
+let dragDepth = 0;
+
+function initDragDrop() {
+    // Unconditional, window-level, and NOT passive. Without this a file dropped
+    // anywhere outside the drop target makes the browser navigate to it, which
+    // discards the SPA — the WebSocket, any in-progress call, everything. `drop`
+    // also never fires unless the preceding `dragover` was prevented.
+    window.addEventListener('dragover', (e) => e.preventDefault());
+    window.addEventListener('drop', (e) => e.preventDefault());
+
+    const pane = $('chatpane');
+    const zone = $('drop-zone');
+    if (!pane || !zone) return;
+
+    const carriesFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
+    const show = (on) => { zone.hidden = !on; };
+
+    // dragenter/leave fire for every child element, so nesting is counted rather
+    // than toggled — otherwise the overlay flickers off crossing a bubble.
+    pane.addEventListener('dragenter', (e) => {
+        if (!carriesFiles(e) || !S.activeConvId) return;
+        dragDepth += 1;
+        show(true);
+    });
+    pane.addEventListener('dragleave', () => {
+        dragDepth = Math.max(0, dragDepth - 1);
+        if (!dragDepth) show(false);
+    });
+    pane.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dragDepth = 0;
+        show(false);
+        if (!S.activeConvId) return;
+
+        // dataTransfer.items is neutered as soon as this handler returns, so the
+        // folder check has to happen NOW, before any await.
+        const items = [...(e.dataTransfer?.items || [])];
+        const hasDir = items.some((it) => it.kind === 'file'
+            && typeof it.webkitGetAsEntry === 'function' && it.webkitGetAsEntry()?.isDirectory);
+        const files = [...(e.dataTransfer?.files || [])];
+        if (hasDir) { toast(t('chat.no_folders')); return; }
+        if (files.length) onFilesPicked(files);
+    });
 }
 
 /* ---------------- voice recording ---------------- */
@@ -995,8 +1113,8 @@ export function initChat() {
         }
     });
 
+    initDragDrop();
     $('file-input').addEventListener('change', (e) => {
-        showAttachNote();
         onFilesPicked([...e.target.files]);
         e.target.value = '';
     });

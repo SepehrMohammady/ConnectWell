@@ -443,6 +443,18 @@ function renderMe() {
     $('btn-admin').hidden = S.me.role !== 'admin';
 }
 
+// The bare type label, without the speaker prefix.
+function previewLabel(m) {
+    switch (m.type) {
+        case 'image': return t('app.preview.image');
+        case 'video': return t('app.preview.video');
+        case 'videomsg': return t('app.preview.videomsg');
+        case 'audio': return t('app.preview.audio');
+        case 'voice': return t('app.preview.voice');
+        default: return t('app.preview.file', { name: m.fileName || t('app.preview.fileFallback') });
+    }
+}
+
 function previewText(conv) {
     const m = conv.lastMessage;
     if (!m) return conv.type === 'group' ? t('app.preview.groupCreated') : t('app.preview.sayHello');
@@ -456,6 +468,10 @@ function previewText(conv) {
     // Otherwise the sidebar advertises "📷 Photo" for a thread whose bubble
     // already reads "Removed to free space".
     if (m.purged) return who + t('app.preview.fileRemoved');
+    // A captioned file reads better as its caption than as "📷 Photo".
+    if (m.type !== 'text' && m.type !== 'system' && m.content) {
+        return who + t('app.preview.withCaption', { label: previewLabel(m), caption: m.content });
+    }
     switch (m.type) {
         case 'text': return who + (m.content || '');
         case 'image': return who + t('app.preview.image');
