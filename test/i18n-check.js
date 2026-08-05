@@ -67,6 +67,7 @@ const NEW_SINCE_BASELINE = {
     'call.no_other_camera': 'rear-camera switch (0.10.0)',
     'sys.call_video': 'call duration log (0.10.0)',
     'sys.call_voice': 'call duration log (0.10.0)',
+    'chat.cant_play': 'unplayable-format fallback (0.14.1)',
     'chat.close': 'lightbox close button (0.11.0)',
     'chat.sent': 'read receipts (0.11.0)',
     'chat.seen': 'read receipts (0.11.0)',

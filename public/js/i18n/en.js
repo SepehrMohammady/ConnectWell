@@ -123,6 +123,7 @@ export default {
     "chat.fwd_from": "Forwarded from @{username}",
     "chat.fwd_title": "Forward to…",
     "chat.fwd_done": "Forwarded",
+    "chat.cant_play": "Cannot play here · {size} · tap to save",
     "chat.close": "Close",
     "chat.caption_placeholder": "Add a caption (optional)",
     "chat.caption_send": "Send",

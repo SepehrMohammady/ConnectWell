@@ -170,6 +170,23 @@ function purgedChip(m) {
     return chip;
 }
 
+// A downloadable chip: the normal presentation for a document, and the fallback
+// when a media file exists but this browser cannot play it.
+function fileChipEl(m, src, unplayable) {
+    const a = h('a', { class: 'file-chip', href: src, download: m.fileName || 'file' });
+    a.append(svgIcon(FILE_SVG));
+    a.append(h('div', {}, [
+        h('div', { class: 'fc-name', text: m.fileName || 'file' }),
+        h('div', {
+            class: 'fc-size',
+            text: unplayable
+                ? t('chat.cant_play', { size: fmtSize(m.fileSize || 0) })
+                : fmtSize(m.fileSize || 0),
+        }),
+    ]));
+    return a;
+}
+
 function bubbleContent(m) {
     // Driven by the flag, and returning before `src` exists. Falling back on a
     // failed request instead would be wrong twice over: responses are cached
@@ -179,48 +196,45 @@ function bubbleContent(m) {
     if (m.purged && m.type !== 'text' && m.type !== 'system') return purgedChip(m);
 
     const src = 'api/files/' + m.id;
-    // Self-heal a tab left open across a purge, and the one case the flag cannot
-    // cover: bytes lost while the row still claims the file is there.
-    const gone = (el) => () => { m.purged = true; el.replaceWith(purgedChip(m)); };
+    // A media element raises `error` for TWO very different reasons: the file is
+    // missing, or this browser simply cannot decode the format (.wma, .flac, some
+    // .mov — no browser plays them all). Treating that as "removed to free space"
+    // was wrong and alarming: the file is right there and still downloadable.
+    // So a playback failure degrades to a download chip, and whether a file was
+    // actually reclaimed is left to the server's flag, which is the only thing
+    // that knows.
+    const unplayable = (el) => () => el.replaceWith(fileChipEl(m, src, true));
     switch (m.type) {
         case 'text':
             return linkify(m.content || '');
         case 'image': {
             const img = h('img', { class: 'msg-img', src, alt: m.fileName || t('chat.image_alt'), loading: 'lazy' });
             img.addEventListener('click', () => showLightbox(src, m.fileName));
-            img.addEventListener('error', gone(img));
+            img.addEventListener('error', unplayable(img));
             return img;
         }
         case 'video':
         case 'videomsg': {
             const v = h('video', { class: 'msg-video', src, controls: '', playsinline: '', preload: 'metadata' });
-            v.addEventListener('error', gone(v));
+            v.addEventListener('error', unplayable(v));
             return v;
         }
         case 'audio': {
             const a = h('audio', { src, controls: '', preload: 'metadata' });
-            a.addEventListener('error', gone(a));
+            a.addEventListener('error', unplayable(a));
             return a;
         }
         case 'voice': {
             const row = h('div', { class: 'voice-row' });
             const a = h('audio', { src, controls: '', preload: 'metadata' });
-            a.addEventListener('error', gone(row));
+            a.addEventListener('error', unplayable(row));
             row.append(svgIcon(MIC_SVG));
             row.append(a);
             if (m.duration) row.append(h('span', { class: 'muted', text: fmtDur(m.duration) }));
             return row;
         }
-        default: { // document
-            const a = h('a', { class: 'file-chip', href: src, download: m.fileName || 'file' });
-            a.append(svgIcon(FILE_SVG));
-            const mid = h('div', {}, [
-                h('div', { class: 'fc-name', text: m.fileName || 'file' }),
-                h('div', { class: 'fc-size', text: fmtSize(m.fileSize || 0) }),
-            ]);
-            a.append(mid);
-            return a;
-        }
+        default:
+            return fileChipEl(m, src, false);
     }
 }
 
@@ -1316,6 +1330,7 @@ export function initChat() {
     });
 
     initDragDrop();
+    $('btn-filter').addEventListener('click', () => (filterOpen ? closeFilter() : openFilter()));
     $('file-input').addEventListener('change', (e) => {
         onFilesPicked([...e.target.files]);
         e.target.value = '';

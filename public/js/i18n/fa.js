@@ -138,6 +138,7 @@ export default {
     "chat.fwd_from": "بازفرستاده از @{username}",
     "chat.fwd_title": "بازفرستادن به…",
     "chat.fwd_done": "بازفرستاده شد",
+    "chat.cant_play": "اینجا پخش نمی‌شود · {size} · برای ذخیره بزنید",
     "chat.close": "بستن",
     "chat.caption_placeholder": "توضیح بنویسید (اختیاری)",
     "chat.caption_send": "ارسال",
