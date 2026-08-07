@@ -2,6 +2,7 @@
 
 import { api, upload } from './api.js';
 import { t, has } from './i18n.js';
+import { ecoOn, shrinkImage } from './eco.js';
 import {
     S, $, h, bus, net, toast, avatarEl, userName, convTitle, convOther,
     fmtTime, fmtDay, sameDay, fmtSize, fmtDur, userById, userAvatar, convAvatarSrc,
@@ -44,12 +45,19 @@ export async function openConv(convId) {
     const conv = S.convs.get(convId);
     if (!conv) return;
     closeFilter();   // a filter must never survive a conversation switch
+    // The previous conversation's unread line is spent; only the one being
+    // opened gets a fresh boundary computed below.
+    if (S.activeConvId && S.activeConvId !== convId) msgStore(S.activeConvId).unreadAt = 0;
     S.activeConvId = convId;
     clearTyping(); // typing state is per-open-conversation; drop stale indicators
     $('view-app').classList.add('mobile-chat-open');
     $('chat-empty').hidden = true;
     $('chat-ui').hidden = false;
     renderHeader();
+    // Whatever was half-typed here last time comes back.
+    const box = $('composer-input');
+    box.value = loadDraft(convId);
+    autosize();
     bus.emit('conv-opened', convId);
 
     const store = msgStore(convId);
@@ -64,13 +72,27 @@ export async function openConv(convId) {
         store.loading = false;
     }
     if (S.activeConvId !== convId) return; // switched away while loading
+    // Read the boundary first: markRead() below moves the watermark, after which
+    // there is no way to tell where the unread run began.
+    const unreadAt = firstUnreadId(convId);
+    // Held on the store so paging and reconnect re-renders keep the line.
+    msgStore(convId).unreadAt = unreadAt;
     renderAll(convId);
-    scrollBottom();
+    if (unreadAt) {
+        const sep = $('unread-sep');
+        // Land on the divider rather than the bottom, so the first thing on
+        // screen is the first thing not yet read.
+        if (sep) sep.scrollIntoView({ block: 'center' });
+        else scrollBottom();
+    } else {
+        scrollBottom();
+    }
     markRead(convId);
 }
 
 export function closeConv() {
     closeFilter();
+    if (S.activeConvId) msgStore(S.activeConvId).unreadAt = 0;
     S.activeConvId = null;
     clearTyping();
     $('view-app').classList.remove('mobile-chat-open');
@@ -94,16 +116,48 @@ export function renderHeader() {
     }
 }
 
+// A removed message is dropped from the thread entirely unless the server says
+// it has to leave a marker. Deleting is only possible before the other side has
+// read the message, so in the ordinary case there is nothing to announce.
+function hiddenMsg(m) { return m.deleted && !m.tombstone; }
+
+// Where the unread run begins, captured BEFORE the conversation is marked read —
+// after that the watermark has moved and the boundary is gone.
+//
+// A floor of 0 is the normal case for a conversation never opened on this
+// account, and it means every message counts as unread, so it must not be
+// treated as "nothing to mark".
+function firstUnreadId(convId) {
+    const conv = S.convs.get(convId);
+    const store = S.msgs.get(convId);
+    if (!conv || !store) return 0;
+    const mine = conv.reads?.find((r) => r.userId === S.me.id);
+    // join_msg_id keeps somebody added to an old group from inheriting its
+    // entire history as unread.
+    const floor = Math.max(mine?.lastReadId || 0, mine?.joinMsgId || 0);
+    const first = store.list.find((m) => m.id > floor && m.senderId !== S.me.id
+        && !hiddenMsg(m) && m.type !== 'system');
+    return first ? first.id : 0;
+}
+
 function renderAll(convId) {
+    const markAt = msgStore(convId).unreadAt || 0;
     const list = $('msg-list');
     list.textContent = '';
     const store = msgStore(convId);
     let prevTs = 0;
     for (const m of store.list) {
+        if (hiddenMsg(m)) continue;
         if (!prevTs || !sameDay(prevTs, m.createdAt)) {
             list.append(h('div', { class: 'day-sep', text: fmtDay(m.createdAt) }));
         }
         prevTs = m.createdAt;
+        // A ruled line where reading left off. openConv scrolls to it by id, so
+        // opening a conversation lands on the first unread message.
+        if (markAt && m.id === markAt) {
+            list.append(h('div', { class: 'unread-sep', id: 'unread-sep' },
+                [h('span', { text: t('chat.unread_here') })]));
+        }
         list.append(msgEl(m));
     }
 }
@@ -296,7 +350,6 @@ function msgEl(m) {
             bubble.append(h('div', { class: 'msg-caption', dir: 'auto', text: m.content }));
         }
         const meta = h('span', { class: 'meta', text: fmtTime(m.createdAt) });
-        if (m.editedAt) meta.insertBefore(h('span', { class: 'edited', text: t('chat.edited') + ' ' }), meta.firstChild);
         bubble.append(meta);
         // Always present on own messages, even when nobody has read it yet, so a
         // read arriving later only ever mutates an existing node — re-rendering
@@ -583,16 +636,11 @@ export function onMsgEdited(message) {
             const cap = bubble.querySelector('.msg-caption');
             if (cap) cap.textContent = m.content || '';
         }
-        markEdited(bubble, m);
     }
 }
 
-function markEdited(bubble, m) {
-    if (!m.editedAt) return;
-    const meta = bubble.querySelector('.meta');
-    if (!meta || meta.querySelector('.edited')) return;
-    meta.insertBefore(h('span', { class: 'edited', text: t('chat.edited') + ' ' }), meta.firstChild);
-}
+// No "edited" marker: editing is only possible before anybody has read the
+// message, so no reader was ever shown an earlier version.
 
 function forwardModal(m) {
     // A small local modal on #modal-root; app.js's helper is not importable from
@@ -704,29 +752,48 @@ export function onMsgNew(m) {
             const scroller = $('msg-scroll');
             const nearBottom = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 160;
             const list = $('msg-list');
+            // The heading only goes in if something is going to follow it.
             const prev = store.list[store.list.length - 2];
-            if (!prev || !sameDay(prev.createdAt, m.createdAt)) {
-                list.append(h('div', { class: 'day-sep', text: fmtDay(m.createdAt) }));
+            if (!hiddenMsg(m)) {
+                if (!prev || !sameDay(prev.createdAt, m.createdAt)) {
+                    list.append(h('div', { class: 'day-sep', text: fmtDay(m.createdAt) }));
+                }
+                list.append(msgEl(m));
             }
-            list.append(msgEl(m));
             if (nearBottom || m.senderId === S.me.id) scrollBottom();
             if (!document.hidden) markRead(m.conversationId);
         }
     }
 }
 
-export function onMsgDeleted(convId, messageId) {
+// A day heading or the unread line is only meaningful if a message follows it.
+// Removing the message they introduced leaves them pointing at nothing.
+function pruneSeparators() {
+    const list = $('msg-list');
+    if (!list) return;
+    const isSep = (el) => el && (el.classList.contains('day-sep') || el.classList.contains('unread-sep'));
+    for (const sep of [...list.querySelectorAll('.day-sep, .unread-sep')]) {
+        if (!sep.nextElementSibling || isSep(sep.nextElementSibling)) sep.remove();
+    }
+}
+
+export function onMsgDeleted(convId, messageId, tombstone) {
     const store = S.msgs.get(convId);
     if (store) {
         const m = store.list.find((x) => x.id === messageId);
-        if (m) { m.deleted = true; m.content = null; }
+        if (m) { m.deleted = true; m.content = null; m.tombstone = !!tombstone; }
     }
     if (S.activeConvId === convId) {
         const m = msgStore(convId).list.find((x) => x.id === messageId);
         // Both the thread and the filter panel may be showing this message.
         for (const el of document.querySelectorAll('.msg-list [data-mid="' + messageId + '"]')) {
-            if (m) el.replaceWith(msgEl(m));
+            // The event's own flag decides, not the store: the filter panel can
+            // show a message that was never loaded into the thread, and a missing
+            // store entry is not evidence that it should vanish.
+            if (!tombstone) el.remove();              // vanishes without a trace
+            else if (m) el.replaceWith(msgEl(m));
         }
+        pruneSeparators();
     }
 }
 
@@ -840,19 +907,80 @@ async function maybeLoadOlder() {
 
 let lastTypingSent = 0;
 
+// Whatever is half-typed is kept per conversation, so switching away, a
+// reload, or a send that fails on a dropped connection never loses it.
+const DRAFT_KEY = 'cw_draft_';
+// Keyed by account too: conversation ids are global, so on a shared browser the
+// next person to sign in would otherwise open a group and find someone else's
+// unsent message sitting in the composer, ready to send.
+const draftKey = (convId) => DRAFT_KEY + (S.me?.id || 0) + '_' + convId;
+
+let draftTimer = null;
+
+// Debounced because it runs on every keystroke, next to autosize()'s forced
+// reflow, on the low-end phones this app is mostly used from. Anything pending
+// is flushed the moment the page might go away.
+export function saveDraftSoon(convId, text) {
+    clearTimeout(draftTimer);
+    draftTimer = setTimeout(() => saveDraft(convId, text), 400);
+}
+
+export function saveDraft(convId, text) {
+    clearTimeout(draftTimer);
+    if (!convId) return;
+    try {
+        if (text) localStorage.setItem(draftKey(convId), text);
+        else localStorage.removeItem(draftKey(convId));
+    } catch { /* private mode */ }
+}
+
+// Every draft on this device. Called on sign-out: the next person to use the
+// browser must not find what the last one was in the middle of writing.
+export function clearDrafts() {
+    try {
+        const keys = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith(DRAFT_KEY)) keys.push(k);
+        }
+        for (const k of keys) localStorage.removeItem(k);
+    } catch { /* private mode */ }
+}
+
+export function loadDraft(convId) {
+    try { return localStorage.getItem(draftKey(convId)) || ''; } catch { return ''; }
+}
+
 async function sendText() {
     const input = $('composer-input');
     const content = input.value.trim();
-    if (!content || !S.activeConvId) return;
+    const convId = S.activeConvId;
+    if (!content || !convId) return;
+    // Cleared optimistically so typing feels instant, but PUT BACK if the send
+    // fails — losing what someone just wrote because the connection dropped is
+    // the worst possible moment to lose it.
     input.value = '';
     autosize();
+    saveDraft(convId, '');
     try {
-        const { message } = await api('api/conversations/' + S.activeConvId + '/messages', {
+        const { message } = await api('api/conversations/' + convId + '/messages', {
             method: 'POST', body: { content },
         });
         onMsgNew(message);           // ws echo is deduped by id
         bus.emit('msg-sent', message);
-    } catch (e) { toast(e.message); }
+    } catch (e) {
+        // Something may already have been typed while the request was in flight.
+        // Both texts are the sender's, so both are kept, oldest first — dropping
+        // either one is the loss this whole path exists to prevent.
+        const pending = S.activeConvId === convId ? input.value : loadDraft(convId);
+        const merged = pending ? content + '\n' + pending : content;
+        if (S.activeConvId === convId) { input.value = merged; autosize(); }
+        saveDraft(convId, merged);
+        // A rejection the server explained (too long, rate limited, signed out)
+        // is not a connection problem, and telling someone to check their
+        // connection would leave them retrying something that cannot succeed.
+        toast(e.status ? e.message : t('chat.send_failed'));
+    }
 }
 
 function autosize() {
@@ -902,11 +1030,14 @@ async function onFilesPicked(files) {
     const caption = await captionDialog(picked);
     if (caption === null) return;               // cancelled
     for (const f of picked) {
+        // Efficiency mode downscales photos before they leave the device; other
+        // kinds pass through untouched.
+        const out = await shrinkImage(f);
         // The caption belongs to the batch's first file; repeating it on each
         // would read as spam in the thread.
-        await uploadBlob(f, {
-            fileName: f.name,
-            mime: f.type || 'application/octet-stream',
+        await uploadBlob(out, {
+            fileName: out.name || f.name,
+            mime: out.type || f.type || 'application/octet-stream',
             caption: f === picked[0] ? caption : '',
         });
     }
@@ -1133,15 +1264,38 @@ function pickMime(cands) {
     return '';
 }
 
+/* Recording was previously left entirely to the browser, which is why the same
+   spoken minute arrived at wildly different sizes: nothing asked for mono, so a
+   stereo-capable device recorded two channels and doubled the bytes, and no
+   bitrate was set, so each engine picked its own default (Chrome's is far higher
+   than speech needs).
+
+   Both are pinned now. Opus at 24 kbps mono is comfortably transparent for
+   voice — about 180 KB per minute — and every browser that records at all
+   supports it. */
+const VOICE_AUDIO = {
+    channelCount: 1,
+    echoCancellation: true,
+    noiseSuppression: true,
+    autoGainControl: true,
+};
+const VOICE_BPS = 24_000;
+const VOICE_BPS_ECO = 12_000;    // still intelligible, half the data
+const VIDEOMSG_BPS = 500_000;
+const VIDEOMSG_BPS_ECO = 200_000;
+
 async function startVoice() {
     if (rec) return;
     let stream;
     try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream = await navigator.mediaDevices.getUserMedia({ audio: VOICE_AUDIO });
     } catch { toast(t('chat.mic_denied')); return; }
-    const mime = pickMime(['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4']);
+    const mime = pickMime(['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/webm', 'audio/mp4']);
     if (mime === null) { toast(t('chat.rec_unsupported')); stream.getTracks().forEach((tr) => tr.stop()); return; }
-    const recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+    const recorder = new MediaRecorder(stream, {
+        ...(mime ? { mimeType: mime } : {}),
+        audioBitsPerSecond: ecoOn() ? VOICE_BPS_ECO : VOICE_BPS,
+    });
     rec = { recorder, stream, chunks: [], start: Date.now(), timer: null, kind: 'voice' };
     recorder.ondataavailable = (e) => { if (e.data.size) rec.chunks.push(e.data); };
     recorder.start(500);
@@ -1185,7 +1339,12 @@ async function openVideoMsg() {
     let stream;
     try {
         stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: 'user', width: { ideal: 720 } }, audio: true,
+            video: {
+                facingMode: 'user',
+                width: { ideal: ecoOn() ? 480 : 720 },
+                frameRate: { ideal: ecoOn() ? 20 : 30, max: 30 },
+            },
+            audio: VOICE_AUDIO,
         });
     } catch { toast(t('chat.cam_denied')); return; }
     vrec = { stream, recorder: null, chunks: [], timer: null, start: 0, blob: null };
@@ -1220,7 +1379,14 @@ function videoMsgRecordToggle() {
     if (!vrec.recorder || vrec.recorder.state === 'inactive') {
         const mime = pickMime(['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4']);
         if (mime === null) { toast(t('chat.rec_unsupported')); return; }
-        vrec.recorder = new MediaRecorder(vrec.stream, mime ? { mimeType: mime } : undefined);
+        // Pinned like the voice recorder, and for the same reason: an unset
+        // bitrate lets each browser pick its own, so identical clips arrive at
+        // wildly different sizes.
+        vrec.recorder = new MediaRecorder(vrec.stream, {
+            ...(mime ? { mimeType: mime } : {}),
+            videoBitsPerSecond: ecoOn() ? VIDEOMSG_BPS_ECO : VIDEOMSG_BPS,
+            audioBitsPerSecond: ecoOn() ? VOICE_BPS_ECO : VOICE_BPS,
+        });
         vrec.chunks = [];
         vrec.recorder.ondataavailable = (e) => { if (e.data.size) vrec.chunks.push(e.data); };
         vrec.recorder.onstop = () => {
@@ -1317,6 +1483,13 @@ function showLightbox(src, name) {
 export function initChat() {
     $('btn-send').addEventListener('click', sendText);
     const input = $('composer-input');
+    input.addEventListener('input', () => saveDraftSoon(S.activeConvId, input.value));
+    // A backgrounded tab on mobile may never come back, so the pending write is
+    // forced out at the last moment it is still allowed to run.
+    const flush = () => saveDraft(S.activeConvId, input.value);
+    input.addEventListener('blur', flush);
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) flush(); });
     input.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendText(); }
     });

@@ -42,6 +42,17 @@ const BASELINE_REF = '26a6fb0';
 // to trace to. Adding a key here is a deliberate act — it is the only way to
 // bypass the check, so keep the reason honest.
 const NEW_SINCE_BASELINE = {
+    'app.conn.lost': 'connection warning (0.15.0)',
+    'app.eco.label': 'efficiency mode (0.15.0)',
+    'app.eco.hint': 'efficiency mode (0.15.0)',
+    'app.eco.on': 'efficiency mode (0.15.0)',
+    'app.eco.off': 'efficiency mode (0.15.0)',
+    'call.eco_note_one': 'efficiency mode (0.15.0)',
+    'call.eco_note_other': 'efficiency mode (0.15.0)',
+    'call.eco_note_self': 'efficiency mode (0.15.0)',
+    'call.eco_join': 'efficiency mode (0.15.0)',
+    'chat.send_failed': 'draft kept on a failed send (0.15.0)',
+    'chat.unread_here': 'unread divider (0.15.0)',
     'app.lang.device': 'language switcher, added with the Farsi release',
     'app.lang.en': 'language switcher',
     'app.lang.fa': 'language switcher',
@@ -75,7 +86,6 @@ const NEW_SINCE_BASELINE = {
     'chat.edit': 'message editing (0.11.0)',
     'chat.edit_cancel': 'message editing (0.11.0)',
     'chat.edit_save': 'message editing (0.11.0)',
-    'chat.edited': 'message editing (0.11.0)',
     'chat.caption_placeholder': 'file captions (0.12.0)',
     'chat.caption_send': 'file captions (0.12.0)',
     'chat.caption_title': 'file captions (0.12.0)',

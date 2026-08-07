@@ -3,6 +3,7 @@
 
 import { api } from './api.js';
 import { t } from './i18n.js';
+import { ecoOn, onEcoChange } from './eco.js';
 import {
     S, $, h, net, toast, avatarEl, userName, convTitle, ringStart, ringStop,
     userById, userAvatar, convAvatarSrc,
@@ -49,11 +50,31 @@ const VIDEO_MIN_KBPS = 150;   // never degrade past unwatchable
 const AUDIO_KBPS = 32;        // speech; Opus sounds fine well under this
 const MAX_FPS = 24;
 
+/* Efficiency mode. One participant on a bad link cannot fix anything alone: what
+   arrives at their device is what the OTHERS send. So the flag is shared — if
+   anybody in the call turns it on, every client drops to this profile, roughly a
+   quarter of the normal bitrate (~55 MB per 30 minutes on a 1:1 video call). */
+const ECO_VIDEO_CAPTURE = {
+    width: { ideal: 320, max: 640 },
+    height: { ideal: 180, max: 360 },
+    frameRate: { ideal: 15, max: 15 },
+};
+const ECO_VIDEO_KBPS = 120;
+const ECO_VIDEO_MIN_KBPS = 60;
+const ECO_AUDIO_KBPS = 16;
+const ECO_MAX_FPS = 15;
+
+// True when THIS call is in efficiency mode, which is not the same as this
+// device having the switch on: the server's shared verdict wins once it arrives.
+const callEco = () => (cur ? cur.eco : ecoOn());
+
 async function getMedia(kind, facing = 'user') {
     try {
         return await navigator.mediaDevices.getUserMedia({
             audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-            video: kind === 'video' ? { ...VIDEO_CAPTURE, facingMode: { ideal: facing } } : false,
+            video: kind === 'video'
+                ? { ...(ecoOn() ? ECO_VIDEO_CAPTURE : VIDEO_CAPTURE), facingMode: { ideal: facing } }
+                : false,
         });
     } catch (e) {
         toast(kind === 'video'
@@ -68,7 +89,21 @@ async function getMedia(kind, facing = 'user') {
 // a 4-way call would quadruple the uplink.
 function videoBudgetBps() {
     const peers = Math.max(1, cur ? cur.peers.size : 1);
-    return Math.max(VIDEO_MIN_KBPS, Math.round(VIDEO_KBPS / peers)) * 1000;
+    const eco = callEco();
+    const budget = eco ? ECO_VIDEO_KBPS : VIDEO_KBPS;
+    const floor = eco ? ECO_VIDEO_MIN_KBPS : VIDEO_MIN_KBPS;
+    return Math.max(floor, Math.round(budget / peers)) * 1000;
+}
+
+// Re-negotiating capture is what actually saves the uplink: capping the encoder
+// while still grabbing 640x360 at 24 fps makes it throw most of that away.
+async function applyCaptureProfile() {
+    if (!cur || cur.kind !== 'video') return;
+    const want = callEco() ? ECO_VIDEO_CAPTURE : VIDEO_CAPTURE;
+    for (const track of cur.local.getVideoTracks()) {
+        try { await track.applyConstraints({ ...want, facingMode: { ideal: cur.facing } }); }
+        catch { /* device refused the profile; the bitrate cap still applies */ }
+    }
 }
 
 // Re-applied whenever the peer set changes, on connect, and after a camera swap:
@@ -83,9 +118,11 @@ async function applyEncodingCaps(pc) {
         // setting one is how a cap is expressed in that case.
         if (!params.encodings || !params.encodings.length) params.encodings = [{}];
         for (const enc of params.encodings) {
-            enc.maxBitrate = isVideo ? videoBudgetBps() : AUDIO_KBPS * 1000;
+            enc.maxBitrate = isVideo
+                ? videoBudgetBps()
+                : (callEco() ? ECO_AUDIO_KBPS : AUDIO_KBPS) * 1000;
             if (isVideo) {
-                enc.maxFramerate = MAX_FPS;
+                enc.maxFramerate = callEco() ? ECO_MAX_FPS : MAX_FPS;
                 // In a larger mesh the per-peer budget is too small to hold 360p;
                 // halving the resolution matches the picture to the bitrate
                 // instead of making the encoder fight for it.
@@ -143,7 +180,12 @@ async function switchCamera() {
         try {
             stream = await navigator.mediaDevices.getUserMedia({
                 audio: false,
-                video: { ...VIDEO_CAPTURE, deviceId: { exact: next.deviceId } },
+                // The eco profile has to be re-requested here: this is a fresh
+                // getUserMedia, so it does not inherit the current track's constraints.
+                video: {
+                    ...(callEco() ? ECO_VIDEO_CAPTURE : VIDEO_CAPTURE),
+                    deviceId: { exact: next.deviceId },
+                },
             });
         } catch { if (cur) toast(t('call.no_other_camera')); return; }
 
@@ -278,9 +320,9 @@ export async function startCall(convId, kind) {
     await getIce(); // load ICE config before any peer exists so ensurePeer is sync
     cur = {
         callId: null, convId, kind, local, peers: new Map(), timer: null,
-        startedAt: Date.now(), facing: 'user', pinLocal: false,
+        startedAt: Date.now(), facing: 'user', pinLocal: false, eco: ecoOn(), ecoUsers: [],
     };
-    net.send('call:start', { convId, kind });
+    net.send('call:start', { convId, kind, eco: ecoOn() });
     showOverlay();
 }
 
@@ -292,9 +334,9 @@ export async function joinCall(callId, convId, kind) {
     await getIce(); // load ICE config before any peer exists so ensurePeer is sync
     cur = {
         callId, convId, kind, local, peers: new Map(), timer: null,
-        startedAt: Date.now(), facing: 'user', pinLocal: false,
+        startedAt: Date.now(), facing: 'user', pinLocal: false, eco: ecoOn(), ecoUsers: [],
     };
-    net.send('call:join', { callId });
+    net.send('call:join', { callId, eco: ecoOn() });
     showOverlay();
 }
 
@@ -324,6 +366,11 @@ export function onCallState(d) {
     }
     if (cur && (cur.callId === d.callId || (cur.callId === null && d.convId === cur.convId))) {
         cur.callId = d.callId;
+        // Adopt the shared verdict before any peer is built, so a new sender's
+        // very first setParameters already carries the right ceiling.
+        const wasEco = cur.eco;
+        cur.eco = !!d.eco;
+        cur.ecoUsers = d.ecoUsers || [];
         const present = new Set();
         for (const p of d.participants) {
             present.add(p.connId);
@@ -335,6 +382,15 @@ export function onCallState(d) {
         // The per-peer video budget is divided by the mesh size, so it has to be
         // recomputed whenever somebody joins or leaves.
         applyAllEncodingCaps();
+        if (cur.eco !== wasEco) applyCaptureProfile();
+        // What the server thinks THIS connection asked for. If the local switch
+        // has moved since — flipped before the call had an id, or flipped while
+        // the socket was down and the message went nowhere — re-assert it.
+        const mine = d.participants.find((p) => p.connId === S.connId);
+        if (mine && mine.eco !== ecoOn()) {
+            net.send('call:eco', { callId: cur.callId, eco: ecoOn() });
+        }
+        renderEcoNote();
         renderGrid();
     }
     updateChip();
@@ -471,8 +527,25 @@ function renderGrid() {
     $('call-flip').hidden = !(hasVideo && cur.canFlip);
 }
 
+// Names whoever pulled the call down to the low-bitrate profile, so the drop in
+// picture quality reads as somebody's bad connection rather than a fault.
+function renderEcoNote() {
+    const note = $('call-eco');
+    if (!note) return;
+    if (!cur || !cur.eco) { note.hidden = true; return; }
+    const others = (cur.ecoUsers || []).filter((id) => id !== S.me.id);
+    note.textContent = others.length
+        ? t('call.eco_note', {
+            n: others.length,
+            names: others.map((id) => userName(id)).join(t('call.eco_join')),
+        })
+        : t('call.eco_note_self');
+    note.hidden = false;
+}
+
 function showOverlay() {
     $('call-overlay').hidden = false;
+    renderEcoNote();
     renderGrid();
     // Device labels/count are only meaningful once permission is granted, which
     // getMedia has just done. Re-render when the answer arrives.
@@ -539,6 +612,24 @@ export function initCalls() {
     $('call-chip-join').addEventListener('click', () => {
         const chip = $('call-chip');
         if (chip.dataset.callId) joinCall(chip.dataset.callId, S.activeConvId, chip.dataset.kind);
+    });
+
+    // Flipping the switch from the profile while a call is up applies to that
+    // call immediately, for everyone in it.
+    onEcoChange((on) => {
+        if (!cur) return;
+        // Turning it on needs no confirmation from anyone: one participant asking
+        // for it is what makes the whole call eco, so it is already true here.
+        // Turning it off does need it — somebody else may still be asking.
+        if (on && !cur.eco) {
+            cur.eco = true;
+            applyAllEncodingCaps();
+            applyCaptureProfile();
+            renderEcoNote();
+        }
+        // No id yet means the call is still being set up; onCallState re-asserts
+        // this against the server as soon as there is something to assert it to.
+        if (cur.callId) net.send('call:eco', { callId: cur.callId, eco: on });
     });
 
     window.addEventListener('beforeunload', () => { if (cur?.callId) net.send('call:leave', { callId: cur.callId }); });

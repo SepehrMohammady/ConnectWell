@@ -25,6 +25,11 @@ Live (unlisted): `https://example.com/connectwell/`
 - **Calls** — 1:1 and group audio/video calls via WebRTC mesh with perfect
   negotiation. Media flows peer-to-peer; the server only relays signaling.
   STUN by default, optional TURN (coturn) via `.env`.
+- **Efficiency mode** — a per-device switch that sends photos, voice messages
+  and video messages at a much lower bitrate. In a call it is shared: if any one
+  participant turns it on, everybody's send profile drops with them, and the call
+  names who asked for it. Built for links where the connection, not the device,
+  is the limit.
 - **Admin panel** — approve / block / unblock / delete members.
 
 ## Stack
@@ -58,9 +63,11 @@ header (CSRF defence in depth).
 WebSocket at `ws`: server pushes `hello`, `msg:new`, `msg:deleted`, `conv:new`,
 `conv:updated`, `conv:removed`, `presence`, `typing`, `user:pending`,
 `user:updated`, `call:state`, `call:ring`, `call:declined`, `call:ended`, `rtc`.
+`call:state` carries the call's shared `eco` verdict plus the `ecoUsers` who asked
+for it.
 Clients send `typing`, `call:start`, `call:join`, `call:leave`, `call:decline`,
-`rtc`. Calls are per-conversation rooms keyed by connection id, so multiple
-devices per user work.
+`rtc`, `call:eco`. Calls are per-conversation rooms keyed by connection id, so
+multiple devices per user work.
 
 ## Development
 

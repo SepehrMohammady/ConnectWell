@@ -759,3 +759,33 @@ img, video { max-width: 100%; }
 }
 .filter-list { flex: 1; overflow-y: auto; padding: 1rem .9rem; }
 .icon-btn.active { background: var(--panel-3); color: var(--accent); }
+
+/* ---------------- connection + unread divider ---------------- */
+/* Sits over the top of the header rather than pushing it down, so nothing
+   reflows every time a flaky link drops. pointer-events: none keeps the buttons
+   underneath clickable — the bar is purely informational, and on a bad
+   connection it may be visible for a long time. */
+.conn-bar {
+    position: fixed; top: 0; inset-inline: 0; z-index: 85;
+    padding: calc(.45rem + env(safe-area-inset-top, 0px)) .8rem .45rem;
+    text-align: center; pointer-events: none;
+    background: var(--danger); color: var(--on-danger);
+    font-size: .85rem; font-weight: 600;
+}
+.unread-sep {
+    display: flex; align-items: center; gap: .6rem;
+    margin: .8rem 0 .4rem; color: var(--danger);
+    font-size: .74rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+}
+.unread-sep::before, .unread-sep::after {
+    content: ''; flex: 1; height: 1px; background: var(--danger); opacity: .5;
+}
+.eco-note { font-size: .8rem; color: var(--muted); text-align: center; padding: .2rem; }
+
+.call-eco {
+    position: absolute; top: calc(env(safe-area-inset-top, 0px) + 3.1rem);
+    inset-inline: 0; margin-inline: auto; width: fit-content; max-width: 90%;
+    padding: .3rem .8rem; border-radius: 999px;
+    background: rgba(0, 0, 0, .55); color: #fff;
+    font-size: .78rem; font-weight: 600; text-align: center;
+}

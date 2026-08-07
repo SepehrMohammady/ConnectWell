@@ -8,12 +8,13 @@ import {
 } from './core.js';
 import {
     initChat, openConv, closeConv, renderHeader, onMsgNew, onMsgDeleted, onTyping, markRead, reconcileActive,
-    sysText, onMsgReaction, onRead, onMsgEdited, onDelReq, primeDelReqs,
+    sysText, onMsgReaction, onRead, onMsgEdited, onDelReq, primeDelReqs, saveDraft, clearDrafts,
 } from './chat.js';
 import {
     initCalls, onCallState, onCallRing, onCallDeclined, onCallEnded, onRtc, updateChip,
 } from './calls.js';
 import { t, applyStatic } from './i18n.js';
+import { ecoOn, setEco } from './eco.js';
 
 let ws = null;
 let wsBackoff = 1000;
@@ -172,6 +173,26 @@ function initInstall() {
     paintInstallBtn();   // in case beforeinstallprompt fired before this ran
 }
 
+/* ---------------- efficiency mode ---------------- */
+
+function ecoSection() {
+    const wrap = h('div', {});
+    const paint = () => {
+        wrap.textContent = '';
+        wrap.append(h('p', { class: 'field-hint', text: t('app.eco.hint') }));
+        const seg = h('div', { class: 'seg' });
+        for (const [on, key] of [[false, 'app.eco.off'], [true, 'app.eco.on']]) {
+            seg.append(h('button', {
+                class: 'seg-opt' + (ecoOn() === on ? ' active' : ''), type: 'button', text: t(key),
+                onclick: () => { setEco(on); paint(); },
+            }));
+        }
+        wrap.append(seg);
+    };
+    paint();
+    return wrap;
+}
+
 /* ---------------- theme ---------------- */
 
 // Cycles system -> light -> dark. The actual resolution lives in js/theme.js so
@@ -263,6 +284,18 @@ async function resync() {
     } catch { /* next reconnect will retry */ }
 }
 
+/* ---------------- connection state ----------------
+   The socket dropping is the visible symptom of a bad network, and on the
+   connections this app is used over it happens often. Saying so plainly beats
+   letting messages quietly fail to send. */
+
+function setOnlineState(up) {
+    const bar = $('conn-bar');
+    if (!bar) return;
+    bar.hidden = up;
+    if (!up) bar.textContent = t('app.conn.lost');
+}
+
 /* ---------------- websocket ---------------- */
 
 function wsUrl() {
@@ -276,6 +309,7 @@ function connectWs() {
     ws = new WebSocket(wsUrl());
     ws.onopen = () => {
         wsBackoff = 1000;
+        setOnlineState(true);
         resync(); // catch anything missed while offline
     };
     ws.onmessage = (e) => {
@@ -286,6 +320,7 @@ function connectWs() {
     };
     ws.onclose = (e) => {
         ws = null;
+        if (authed) setOnlineState(false);
         // 4001 = account disabled, 4002 = logged out elsewhere in this browser.
         if (e.code === 4001 || e.code === 4002) { location.reload(); return; }
         if (authed) {
@@ -332,8 +367,13 @@ const EVENTS = {
     },
     'msg:deleted'(d) {
         const conv = S.convs.get(d.convId);
-        if (conv?.lastMessage?.id === d.messageId) conv.lastMessage.deleted = true;
-        onMsgDeleted(d.convId, d.messageId);
+        // Provisional only: a conv:updated with the recomputed preview and unread
+        // count follows immediately, which is what actually settles the row.
+        if (conv?.lastMessage?.id === d.messageId) {
+            conv.lastMessage.deleted = true;
+            conv.lastMessage.tombstone = !!d.tombstone;
+        }
+        onMsgDeleted(d.convId, d.messageId, d.tombstone);
         renderConvList();
     },
     'msg:reaction'(d) { onMsgReaction(d.convId, d.messageId, d.reactions); },
@@ -366,6 +406,7 @@ const EVENTS = {
     'conv:removed'(d) {
         S.convs.delete(d.convId);
         S.msgs.delete(d.convId);
+        saveDraft(d.convId, '');   // nothing left to send it to
         if (S.activeConvId === d.convId) closeConv();
         renderConvList();
     },
@@ -460,6 +501,12 @@ function previewLabel(m) {
 function previewText(conv) {
     const m = conv.lastMessage;
     if (!m) return conv.type === 'group' ? t('app.preview.groupCreated') : t('app.preview.sayHello');
+    // Only a removal that left a marker in the thread is worth naming. Anything
+    // else falls through to the conversation's own empty state rather than a
+    // blank row, which is what a not-yet-replaced preview would otherwise be.
+    if (m.deleted && !m.tombstone) {
+        return conv.type === 'group' ? t('app.preview.groupCreated') : t('app.preview.sayHello');
+    }
     if (m.deleted) return t('app.preview.messageDeleted');
     // The speaker prefix is one key with a {name} slot, so a translator controls
     // the separator and can put the name where the language wants it. The message
@@ -958,6 +1005,9 @@ function profileModal() {
         modal.append(languageSeg(say));
 
         /* notifications */
+        modal.append(h('label', { class: 'field-label', text: t('app.eco.label') }));
+        modal.append(ecoSection());
+
         modal.append(h('label', { class: 'field-label', text: t('app.notif.label') }));
         modal.append(notifSection());
 
@@ -1086,6 +1136,10 @@ function initSidebar() {
     $('chat-title-wrap').addEventListener('click', convInfoModal);
     $('btn-admin').addEventListener('click', adminModal);
     $('btn-logout').addEventListener('click', async () => {
+        // Drafts are this account's unsent words, held on the device. They go
+        // before the session does, so the next person to sign in here never
+        // sees them.
+        clearDrafts();
         try { await api('api/logout', { method: 'POST' }); } catch { }
         location.reload();
     });

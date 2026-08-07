@@ -135,7 +135,7 @@ await step('a missing key never yields undefined or empty', async () => {
     if (v === undefined || v === '') throw new Error('got ' + JSON.stringify(v));
 });
 
-for (const m of ['core', 'api', 'avatar', 'chat', 'calls', 'app']) {
+for (const m of ['core', 'api', 'avatar', 'eco', 'chat', 'calls', 'app']) {
     await step('module executes: ' + m + '.js', async () => { await load('public/js/' + m + '.js'); });
 }
 
