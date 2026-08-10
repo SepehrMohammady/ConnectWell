@@ -1332,32 +1332,123 @@ function stopVoice(send) {
 
 /* ---------------- video message ---------------- */
 
-let vrec = null; // { recorder, stream, chunks, timer, start, blob }
+let vrec = null; // { recorder, stream, chunks, timer, start, blob, canFlip, switching }
+
+function vmVideoConstraints(deviceId) {
+    return {
+        // A specific camera is asked for by id when cycling; facingMode is only
+        // the starting hint, because many cameras report no facing at all.
+        ...(deviceId ? { deviceId: { exact: deviceId } } : { facingMode: 'user' }),
+        width: { ideal: ecoOn() ? 480 : 720 },
+        frameRate: { ideal: ecoOn() ? 20 : 30, max: 30 },
+    };
+}
+
+async function cameraInputs() {
+    try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        return devices.filter((d) => d.kind === 'videoinput');
+    } catch { return []; }
+}
+
+// Mirror only a live front-facing view. Anything that does not explicitly say it
+// is the rear camera is treated as front, same as the call self-view.
+function vmSetMirror() {
+    const facing = vrec?.stream.getVideoTracks()[0]?.getSettings?.().facingMode;
+    $('videomsg-preview').classList.toggle('mirror', facing !== 'environment');
+}
+
+// Offered only in the live view: MediaRecorder is wired to the stream's track
+// set when recording starts, and changing that set mid-recording is an error
+// that kills the take. So the button hides while recording and during playback,
+// and comes back on retake.
+function vmFlipVisible(live) {
+    $('videomsg-flip').hidden = !(live && vrec?.canFlip);
+}
 
 async function openVideoMsg() {
     if (!S.activeConvId) return;
     let stream;
     try {
         stream = await navigator.mediaDevices.getUserMedia({
-            video: {
-                facingMode: 'user',
-                width: { ideal: ecoOn() ? 480 : 720 },
-                frameRate: { ideal: ecoOn() ? 20 : 30, max: 30 },
-            },
+            video: vmVideoConstraints(),
             audio: VOICE_AUDIO,
         });
     } catch { toast(t('chat.cam_denied')); return; }
-    vrec = { stream, recorder: null, chunks: [], timer: null, start: 0, blob: null };
+    vrec = { stream, recorder: null, chunks: [], timer: null, start: 0, blob: null, canFlip: false, switching: false };
     const modal = $('videomsg-modal');
     const prev = $('videomsg-preview');
     prev.srcObject = stream;
     prev.muted = true;
     prev.controls = false;
+    vmSetMirror();
     modal.hidden = false;
     $('videomsg-record').hidden = false;
     $('videomsg-record').textContent = t('chat.vm_record');
     $('videomsg-send').hidden = true;
+    $('videomsg-flip').hidden = true;
     $('videomsg-time').textContent = '0:00';
+    // Device count is only trustworthy once permission is granted, which the
+    // getUserMedia above has just done. `mine` pins the answer to THIS session:
+    // by the time enumeration settles the modal may have been cancelled and
+    // reopened, or a recording may already be running.
+    const mine = vrec;
+    cameraInputs().then((cams) => {
+        if (vrec !== mine) return;
+        vrec.canFlip = cams.length > 1;
+        if (!vrec.recorder) vmFlipVisible(true);
+    });
+}
+
+// Swap the video track for the next camera, keeping the audio track untouched.
+// Unlike the in-call switch, the old camera is released BEFORE the new one is
+// opened: nothing is consuming the stream yet, and many phones refuse to have
+// both cameras open at once — which is exactly the phone this button is for.
+//
+// `vrec.recorder` being set means recording, finalizing, or playback — the flip
+// is only legal in the live view, where the recorder does not exist yet.
+async function flipVideoMsgCamera() {
+    if (!vrec || vrec.switching || vrec.blob || vrec.recorder) return;
+    const mine = vrec;   // identity, not truthiness: cancel + reopen makes a NEW session
+    vrec.switching = true;
+    try {
+        const cams = await cameraInputs();
+        if (vrec !== mine) return;
+        if (cams.length < 2) { toast(t('call.no_other_camera')); return; }
+
+        const old = mine.stream.getVideoTracks()[0];
+        const currentId = old?.getSettings?.().deviceId;
+        const at = cams.findIndex((d) => d.deviceId === currentId);
+        const next = cams[((at < 0 ? 0 : at) + 1) % cams.length];
+
+        if (old) { mine.stream.removeTrack(old); old.stop(); }
+
+        let track = null, gotId = null;
+        for (const id of [next.deviceId, currentId]) {
+            if (!id) continue;
+            try {
+                const got = await navigator.mediaDevices.getUserMedia({ audio: false, video: vmVideoConstraints(id) });
+                track = got.getVideoTracks()[0];
+                if (track) { gotId = id; break; }
+            } catch { /* try the fallback id */ }
+        }
+        // This session can be gone (cancelled — possibly with a fresh modal open
+        // in its place) by the time getUserMedia settles. The track is not in any
+        // stream yet, so nothing else can stop it; it must be stopped here.
+        if (vrec !== mine) { if (track) track.stop(); return; }
+        if (!track) { toast(t('chat.cam_denied')); closeVideoMsg(); return; }
+        // The other camera refused and the old one was re-acquired: say so,
+        // otherwise the unchanged picture reads as a dead button.
+        if (gotId === currentId && gotId !== next.deviceId) toast(t('call.no_other_camera'));
+
+        mine.stream.addTrack(track);
+        // Same stream object, but re-assigning nudges engines that do not follow
+        // live track changes on an already-attached srcObject.
+        $('videomsg-preview').srcObject = mine.stream;
+        vmSetMirror();
+    } finally {
+        if (vrec === mine) vrec.switching = false;
+    }
 }
 
 function closeVideoMsg() {
@@ -1368,15 +1459,24 @@ function closeVideoMsg() {
     const prev = $('videomsg-preview');
     prev.srcObject = null;
     prev.removeAttribute('src');
+    prev.classList.remove('mirror');
     if (vrec.previewUrl) URL.revokeObjectURL(vrec.previewUrl);
     $('videomsg-modal').hidden = true;
     vrec = null;
 }
 
+// One button, four states, and the recorder object is the state marker: absent
+// in the live view, 'recording' while a take runs, then present-but-inactive
+// from stop() until retake. The branches must stay mutually exclusive on that —
+// an over-broad "inactive" test here once made the retake branch unreachable, so
+// tapping "Retake" recorded a new take blind over the frozen playback.
 function videoMsgRecordToggle() {
     if (!vrec) return;
     const btn = $('videomsg-record');
-    if (!vrec.recorder || vrec.recorder.state === 'inactive') {
+    if (!vrec.recorder) {
+        // Mid-switch the stream briefly has no video track, and a recorder
+        // started then would be audio-only for the whole take.
+        if (vrec.switching) return;
         const mime = pickMime(['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4']);
         if (mime === null) { toast(t('chat.rec_unsupported')); return; }
         // Pinned like the voice recorder, and for the same reason: an unset
@@ -1388,19 +1488,25 @@ function videoMsgRecordToggle() {
             audioBitsPerSecond: ecoOn() ? VOICE_BPS_ECO : VOICE_BPS,
         });
         vrec.chunks = [];
-        vrec.recorder.ondataavailable = (e) => { if (e.data.size) vrec.chunks.push(e.data); };
+        // Pinned to THIS session: cancelling and reopening the modal makes a new
+        // vrec, and a straggling onstop from the old recorder must not deliver
+        // the old take into it.
+        const mine = vrec;
+        vrec.recorder.ondataavailable = (e) => { if (e.data.size) mine.chunks.push(e.data); };
         vrec.recorder.onstop = () => {
-            if (!vrec) return;
-            const type = vrec.recorder.mimeType || 'video/webm';
-            vrec.blob = new Blob(vrec.chunks, { type });
-            vrec.duration = (Date.now() - vrec.start) / 1000;
+            if (vrec !== mine) return;
+            const type = mine.recorder.mimeType || 'video/webm';
+            mine.blob = new Blob(mine.chunks, { type });
+            mine.duration = (Date.now() - mine.start) / 1000;
             const prev = $('videomsg-preview');
             prev.srcObject = null;
-            if (vrec.previewUrl) URL.revokeObjectURL(vrec.previewUrl);
-            vrec.previewUrl = URL.createObjectURL(vrec.blob);
-            prev.src = vrec.previewUrl;
+            if (mine.previewUrl) URL.revokeObjectURL(mine.previewUrl);
+            mine.previewUrl = URL.createObjectURL(mine.blob);
+            prev.src = mine.previewUrl;
             prev.muted = false;
             prev.controls = true;
+            // Playback shows the clip as recorded — never mirrored.
+            prev.classList.remove('mirror');
             $('videomsg-send').hidden = false;
             btn.textContent = t('chat.vm_retake');
         };
@@ -1412,6 +1518,7 @@ function videoMsgRecordToggle() {
         }, 300);
         btn.textContent = t('chat.vm_stop');
         $('videomsg-send').hidden = true;
+        vmFlipVisible(false);
     } else if (vrec.recorder.state === 'recording') {
         clearInterval(vrec.timer);
         vrec.recorder.stop();
@@ -1423,12 +1530,16 @@ function videoMsgRecordToggle() {
         prev.srcObject = vrec.stream;
         prev.muted = true;
         prev.controls = false;
+        vmSetMirror();
         vrec.blob = null;
         vrec.recorder = null;
         $('videomsg-send').hidden = true;
         $('videomsg-record').textContent = t('chat.vm_record');
         $('videomsg-time').textContent = '0:00';
+        vmFlipVisible(true);
     }
+    // Remaining case: stop() sent but onstop not yet fired. A click there must
+    // do nothing — building a second recorder mid-finalization corrupts the take.
 }
 
 function sendVideoMsg() {
@@ -1515,6 +1626,7 @@ export function initChat() {
 
     $('btn-videomsg').addEventListener('click', openVideoMsg);
     $('videomsg-cancel').addEventListener('click', closeVideoMsg);
+    $('videomsg-flip').addEventListener('click', flipVideoMsgCamera);
     $('videomsg-record').addEventListener('click', videoMsgRecordToggle);
     $('videomsg-send').addEventListener('click', sendVideoMsg);
 

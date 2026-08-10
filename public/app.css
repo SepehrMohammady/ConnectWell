@@ -619,6 +619,9 @@ img, video { max-width: 100%; }
 .modal input:focus { border-color: var(--accent-deep); }
 .modal .list { overflow-y: auto; flex: 1; min-height: 0; }
 #videomsg-modal video { width: 100%; border-radius: 12px; background: #000; aspect-ratio: 3/4; object-fit: cover; }
+/* The live front-camera view is mirrored, matching the call self-view and every
+   native camera app; the recorded clip and the rear camera are never mirrored. */
+#videomsg-modal video.mirror { transform: scaleX(-1); }
 
 .user-row {
     display: flex; align-items: center; gap: .7rem; width: 100%;

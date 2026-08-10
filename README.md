@@ -21,7 +21,7 @@ Live (unlisted): `https://example.com/connectwell/`
 - **Files** — share images, video, audio, and documents up to 200 MB; images open
   in a lightbox, media streams with seeking (HTTP Range).
 - **Voice & video messages** — recorded in the browser (MediaRecorder) and sent
-  like any other message.
+  like any other message; video messages can use the front or rear camera.
 - **Calls** — 1:1 and group audio/video calls via WebRTC mesh with perfect
   negotiation. Media flows peer-to-peer; the server only relays signaling.
   STUN by default, optional TURN (coturn) via `.env`.
