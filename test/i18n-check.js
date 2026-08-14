@@ -42,6 +42,16 @@ const BASELINE_REF = '26a6fb0';
 // to trace to. Adding a key here is a deliberate act — it is the only way to
 // bypass the check, so keep the reason honest.
 const NEW_SINCE_BASELINE = {
+    'ui.sidebar.activity': 'activity center (0.17.0)',
+    'activity.title': 'activity center (0.17.0)',
+    'activity.empty': 'activity center (0.17.0)',
+    'activity.react': 'activity center (0.17.0)',
+    'activity.missed_voice': 'activity center (0.17.0)',
+    'activity.missed_video': 'activity center (0.17.0)',
+    'sys.call_missed_voice': 'activity center (0.17.0)',
+    'sys.call_missed_video': 'activity center (0.17.0)',
+    'sys.call_noanswer_voice': 'activity center (0.17.0)',
+    'sys.call_noanswer_video': 'activity center (0.17.0)',
     'app.conn.lost': 'connection warning (0.15.0)',
     'app.eco.label': 'efficiency mode (0.15.0)',
     'app.eco.hint': 'efficiency mode (0.15.0)',

@@ -9,6 +9,7 @@ import {
 import {
     initChat, openConv, closeConv, renderHeader, onMsgNew, onMsgDeleted, onTyping, markRead, reconcileActive,
     sysText, onMsgReaction, onRead, onMsgEdited, onDelReq, primeDelReqs, saveDraft, clearDrafts,
+    jumpToMessage,
 } from './chat.js';
 import {
     initCalls, onCallState, onCallRing, onCallDeclined, onCallEnded, onRtc, updateChip,
@@ -173,6 +174,104 @@ function initInstall() {
     paintInstallBtn();   // in case beforeinstallprompt fired before this ran
 }
 
+/* ---------------- activity ----------------
+   The bell: missed calls and reactions to this user's messages, collected in
+   one place so nothing that happened while they were away has to be hunted for
+   conversation by conversation. Clicking an item leads to the message itself. */
+
+let activityUnseen = 0;
+
+function paintActivityBadge() {
+    const b = $('activity-badge');
+    if (!b) return;
+    b.hidden = activityUnseen === 0;
+    b.textContent = activityUnseen > 99 ? '99+' : String(activityUnseen);
+}
+
+// One line describing what happened, in the viewer's language.
+function activityLabel(item) {
+    if (item.kind === 'missed_call') {
+        return t(item.msgSysKey === 'sys.call_missed_video'
+            ? 'activity.missed_video' : 'activity.missed_voice');
+    }
+    return t('activity.react', { emoji: item.emoji || '' });
+}
+
+// What the reaction landed on, so the owner knows which message before jumping.
+function activitySnippet(item) {
+    if (item.kind !== 'reaction') return '';
+    if (item.msgType === 'text') {
+        const text = item.msgContent || '';
+        return text.length > 80 ? text.slice(0, 80) + '…' : text;
+    }
+    if (item.msgContent) return item.msgContent;   // a file's caption names it best
+    return previewLabel({ type: item.msgType, fileName: item.msgFileName });
+}
+
+function activityModal() {
+    openModal(async (modal, close) => {
+        modal.append(h('h3', { text: t('activity.title') }));
+        const list = h('div', { class: 'list' });
+        modal.append(list);
+        let data;
+        try { data = await api('api/activity'); }
+        catch (e) { toast(e.message); close(); return; }
+        // Closed (backdrop tap) while the list was loading: nothing was shown,
+        // so nothing may be acknowledged — or the dots and badge would vanish
+        // for items the user never laid eyes on.
+        if (!modal.isConnected) return;
+
+        if (!data.items.length) {
+            list.append(h('p', { class: 'field-hint', text: t('activity.empty') }));
+        }
+        for (const item of data.items) {
+            const conv = S.convs.get(item.convId);
+            const row = h('button', {
+                class: 'activity-row' + (item.seenAt ? '' : ' unseen'), type: 'button',
+                onclick: () => {
+                    close();
+                    if (S.convs.has(item.convId)) jumpToMessage(item.convId, item.messageId);
+                },
+            });
+            const actor = S.users.get(item.actorId);
+            row.append(avatarEl(userName(item.actorId), { src: userAvatar(actor) }));
+            const mid = h('div', { class: 'u-mid' }, [
+                h('div', { class: 'u-name', text: userName(item.actorId) }),
+                h('div', { class: 'a-what', text: activityLabel(item) }),
+            ]);
+            const snippet = activitySnippet(item);
+            if (snippet) mid.append(h('div', { class: 'a-snippet', text: snippet }));
+            mid.append(h('div', { class: 'a-sub', text:
+                (conv?.type === 'group' ? convTitle(conv) + ' · ' : '') + fmtListTime(item.createdAt) }));
+            row.append(mid);
+            if (!item.seenAt) row.append(h('span', { class: 'a-dot', 'aria-hidden': 'true' }));
+            list.append(row);
+        }
+
+        // Opening the panel is the acknowledgement: the badge clears, while the
+        // dots stay for this viewing so what was new is still visible.
+        if (data.unseen > 0) {
+            api('api/activity/seen', { method: 'POST' }).catch(() => { /* next open retries */ });
+        }
+        activityUnseen = 0;
+        paintActivityBadge();
+    });
+}
+
+function onActivityNew(item) {
+    activityUnseen++;
+    paintActivityBadge();
+    // A missed call already rang; only a reaction earns a fresh sound, and only
+    // when the owner is not looking at that conversation right now.
+    if (item.kind === 'reaction' && (item.convId !== S.activeConvId || document.hidden)) {
+        popSound();
+    }
+    notify(userName(item.actorId), activityLabel(item), {
+        tag: 'cw-activity',
+        onclick: () => { if (S.convs.has(item.convId)) jumpToMessage(item.convId, item.messageId); },
+    });
+}
+
 /* ---------------- efficiency mode ---------------- */
 
 function ecoSection() {
@@ -270,6 +369,8 @@ function applyBootstrap(data) {
     S.online = new Set(data.online);
     S.calls = new Map(data.calls.map((c) => [c.convId, c]));
     primeDelReqs(data.deleteRequests);
+    activityUnseen = data.activityUnseen || 0;
+    paintActivityBadge();
     if (S.activeConvId && !S.convs.has(S.activeConvId)) closeConv();
 }
 
@@ -377,6 +478,8 @@ const EVENTS = {
         renderConvList();
     },
     'msg:reaction'(d) { onMsgReaction(d.convId, d.messageId, d.reactions); },
+    'activity:new'(d) { onActivityNew(d.item); },
+    'activity:sync'(d) { activityUnseen = d.unseen; paintActivityBadge(); },
     read(d) { onRead(d.convId, d.userId, d.lastReadId); },
     'msg:delreq'(d) { onDelReq(d.request); },
     'msg:edited'(d) {
@@ -1134,6 +1237,7 @@ function initSidebar() {
     $('btn-new-chat').addEventListener('click', newChatModal);
     $('btn-new-group').addEventListener('click', newGroupModal);
     $('chat-title-wrap').addEventListener('click', convInfoModal);
+    $('btn-activity').addEventListener('click', activityModal);
     $('btn-admin').addEventListener('click', adminModal);
     $('btn-logout').addEventListener('click', async () => {
         // Drafts are this account's unsent words, held on the device. They go

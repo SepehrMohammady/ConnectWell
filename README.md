@@ -25,6 +25,9 @@ Live (unlisted): `https://example.com/connectwell/`
 - **Calls** — 1:1 and group audio/video calls via WebRTC mesh with perfect
   negotiation. Media flows peer-to-peer; the server only relays signaling.
   STUN by default, optional TURN (coturn) via `.env`.
+- **Activity center** — a bell collecting missed calls and reactions to your
+  messages, with a live badge; each item jumps straight to the message it is
+  about. Unanswered calls also leave a "Missed call" line in the thread.
 - **Efficiency mode** — a per-device switch that sends photos, voice messages
   and video messages at a much lower bitrate. In a call it is shared: if any one
   participant turns it on, everybody's send profile drops with them, and the call
@@ -56,13 +59,15 @@ deploy/            run/watchdog scripts + nginx snippet + sudo setup
 
 REST under `api/`: `register`, `login`, `logout`, `me`, `bootstrap`, `users`,
 `conversations` (+ `/:id/messages`, `/read`, `/members`, `/upload`), `files/:id`,
-`messages/:id` (DELETE), `ice`, `admin/users` (+ approve/block/unblock/delete),
-`health`. State-changing requests require the `X-Requested-With: ConnectWell`
-header (CSRF defence in depth).
+`messages/:id` (DELETE), `activity` (+ `/seen`), `ice`,
+`admin/users` (+ approve/block/unblock/delete), `health`. State-changing
+requests require the `X-Requested-With: ConnectWell` header (CSRF defence in
+depth).
 
 WebSocket at `ws`: server pushes `hello`, `msg:new`, `msg:deleted`, `conv:new`,
 `conv:updated`, `conv:removed`, `presence`, `typing`, `user:pending`,
-`user:updated`, `call:state`, `call:ring`, `call:declined`, `call:ended`, `rtc`.
+`user:updated`, `call:state`, `call:ring`, `call:declined`, `call:ended`, `rtc`,
+`activity:new`, `activity:sync`.
 `call:state` carries the call's shared `eco` verdict plus the `ecoUsers` who asked
 for it.
 Clients send `typing`, `call:start`, `call:join`, `call:leave`, `call:decline`,

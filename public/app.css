@@ -792,3 +792,27 @@ img, video { max-width: 100%; }
     background: rgba(0, 0, 0, .55); color: #fff;
     font-size: .78rem; font-weight: 600; text-align: center;
 }
+
+/* ---------------- activity center ---------------- */
+.activity-row {
+    display: flex; align-items: center; gap: .7rem; width: 100%;
+    padding: .55rem .6rem; border-radius: 12px; text-align: start;
+}
+@media (hover: hover) { .activity-row:hover { background: var(--panel-2); } }
+.activity-row .u-mid { flex: 1; min-width: 0; }
+.a-what { font-size: .88rem; }
+.a-snippet {
+    font-size: .82rem; color: var(--muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.a-sub { font-size: .76rem; color: var(--muted); margin-top: .1rem; }
+.a-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); flex: none; }
+.activity-row.unseen .a-what { font-weight: 600; }
+
+/* The landing flash for "take me to this message": bright enough to catch the
+   eye mid-scroll, gone before it becomes decoration. */
+@keyframes cw-flash {
+    0%, 55% { background: var(--accent-tint); }
+    100% { background: transparent; }
+}
+.msg-row.flash, .msg-sys.flash { animation: cw-flash 2.6s ease-out; border-radius: var(--radius); }

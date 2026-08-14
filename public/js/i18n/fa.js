@@ -14,6 +14,11 @@
 
 export default {
 
+    "activity.empty": "هنوز چیزی نیست. تماس‌های ازدست‌رفته و واکنش‌ها به پیام‌های شما اینجا نمایش داده می‌شوند.",
+    "activity.missed_video": "تماس تصویری ازدست‌رفته",
+    "activity.missed_voice": "تماس صوتی ازدست‌رفته",
+    "activity.react": "به پیام شما واکنش {emoji} نشان داد",
+    "activity.title": "فعالیت‌ها",
     "app.admin.approve": "تأیید",
     "app.admin.block": "مسدود کردن",
     "app.admin.delete": "حذف حساب",
@@ -208,6 +213,10 @@ export default {
     "img.too_large": "این تصویر خیلی بزرگ است",
     "img.unreadable": "این تصویر خوانده نشد",
 
+    "sys.call_missed_video": "تماس تصویری ازدست‌رفته",
+    "sys.call_missed_voice": "تماس صوتی ازدست‌رفته",
+    "sys.call_noanswer_video": "تماس تصویری · بی‌پاسخ",
+    "sys.call_noanswer_voice": "تماس صوتی · بی‌پاسخ",
     "sys.call_video": "تماس تصویری · {start} – {end} · {duration}",
     "sys.call_voice": "تماس صوتی · {start} – {end} · {duration}",
     "sys.group_created": "{name} گروه را ساخت",
@@ -253,6 +262,7 @@ export default {
     "ui.rec.send": "ارسال",
     "ui.ring.accept": "پاسخ",
     "ui.ring.decline": "رد",
+    "ui.sidebar.activity": "فعالیت‌ها",
     "ui.sidebar.admin": "پنل مدیریت",
     "ui.sidebar.install": "نصب برنامه",
     "ui.sidebar.convList": "گفت‌وگوها",

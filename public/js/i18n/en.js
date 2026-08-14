@@ -10,6 +10,11 @@
 export default {
 
     /* Shell, sidebar, modals, admin and profile (app.js) */
+    "activity.empty": "Nothing here yet. Missed calls and reactions to your messages will show up here.",
+    "activity.missed_video": "Missed video call",
+    "activity.missed_voice": "Missed voice call",
+    "activity.react": "Reacted {emoji} to your message",
+    "activity.title": "Activity",
     "app.admin.approve": "Approve",
     "app.admin.block": "Block",
     "app.admin.delete": "Delete",
@@ -216,6 +221,10 @@ export default {
     /* Stored system events. The server also writes the English sentence to
        messages.content, so rows created before these keys existed still render,
        and so does any key a newer server introduces that this build lacks. */
+    "sys.call_missed_video": "Missed video call",
+    "sys.call_missed_voice": "Missed voice call",
+    "sys.call_noanswer_video": "Video call · no answer",
+    "sys.call_noanswer_voice": "Voice call · no answer",
     "sys.call_video": "Video call · {start} – {end} · {duration}",
     "sys.call_voice": "Voice call · {start} – {end} · {duration}",
     "sys.group_created": "{name} created the group",
@@ -262,6 +271,7 @@ export default {
     "ui.rec.send": "Send",
     "ui.ring.accept": "Accept",
     "ui.ring.decline": "Decline",
+    "ui.sidebar.activity": "Activity",
     "ui.sidebar.admin": "Admin panel",
     "ui.sidebar.install": "Install app",
     "ui.sidebar.convList": "Conversations",

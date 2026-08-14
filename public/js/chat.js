@@ -90,6 +90,42 @@ export async function openConv(convId) {
     markRead(convId);
 }
 
+// Land on one specific message: open the conversation, page back through
+// history until the message is loaded, then centre and briefly highlight it.
+// This is what an activity item resolves to — "guide them to the message".
+export async function jumpToMessage(convId, messageId) {
+    await openConv(convId);
+    if (S.activeConvId !== convId) return;   // switched away while loading
+    const store = msgStore(convId);
+    let paged = false;
+    // Bounded: 40 pages of 50 is further back than anyone scrolls by hand. A
+    // target older than that (or deleted) degrades to the conversation as-is.
+    for (let i = 0; i < 40 && !store.ids.has(messageId) && !store.complete; i++) {
+        const oldest = store.list[0]?.id;
+        if (!oldest || oldest <= messageId) break;
+        try {
+            const { messages } = await api('api/conversations/' + convId + '/messages?limit=50&before=' + oldest);
+            if (messages.length < 50) store.complete = true;
+            const fresh = messages.filter((m) => !store.ids.has(m.id));
+            for (const m of fresh) store.ids.add(m.id);
+            store.list = fresh.concat(store.list).sort((a, b) => a.id - b.id);
+            paged = true;
+        } catch { break; }   // transient: land wherever we got to
+        if (S.activeConvId !== convId) return;
+    }
+    // Re-checked after the loop as well: a fetch failure breaks out past the
+    // in-loop guard, and the user may have switched conversations during it —
+    // repainting the active view with another conversation's messages is the
+    // one thing this must never do.
+    if (S.activeConvId !== convId) return;
+    if (paged) renderAll(convId);
+    const el = document.querySelector('#msg-list [data-mid="' + messageId + '"]');
+    if (!el) return;   // deleted without a marker, or beyond the paging bound
+    el.scrollIntoView({ block: 'center' });
+    el.classList.add('flash');
+    setTimeout(() => el.classList.remove('flash'), 2600);
+}
+
 export function closeConv() {
     closeFilter();
     if (S.activeConvId) msgStore(S.activeConvId).unreadAt = 0;
@@ -307,6 +343,15 @@ export function sysText(m) {
                 end: fmtTime(a.endedAt),
                 duration: fmtDur(a.seconds),
             });
+        }
+        // One shared message, two truths: the caller did not miss anything —
+        // for them the same line reads as "no answer".
+        if (m.sysKey === 'sys.call_missed_video' || m.sysKey === 'sys.call_missed_voice') {
+            if (a.by === S.me.id) {
+                return t(m.sysKey === 'sys.call_missed_video'
+                    ? 'sys.call_noanswer_video' : 'sys.call_noanswer_voice');
+            }
+            return t(m.sysKey);
         }
         return t(m.sysKey, a);
     }
