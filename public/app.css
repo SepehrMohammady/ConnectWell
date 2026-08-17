@@ -81,7 +81,12 @@ img, video { max-width: 100%; }
 [hidden] { display: none !important; }
 .muted { color: var(--muted); }
 
-.view { height: 100dvh; }
+/* The body is the column: the connection bar (when shown) takes its own height
+   at the top and the active view takes the rest, so nothing overlaps and nothing
+   has to be measured. Views are mutually exclusive and the hidden ones are
+   display:none, so exactly one ever shares the column with the bar. */
+body { height: 100dvh; display: flex; flex-direction: column; }
+.view { flex: 1 1 auto; min-height: 0; }
 .center-view { display: flex; align-items: center; justify-content: center; padding: 2rem; }
 
 /* ---------------- buttons ---------------- */
@@ -279,7 +284,10 @@ img, video { max-width: 100%; }
 
 /* ---------------- chat pane ---------------- */
 
-#chatpane { display: flex; flex-direction: column; min-width: 0; height: 100dvh; }
+/* 100% of its grid area rather than of the viewport: the area shrinks when the
+   connection bar is present, and a viewport-height pane would ignore that and
+   push the composer off the bottom of the screen. */
+#chatpane { display: flex; flex-direction: column; min-width: 0; height: 100%; }
 .chat-empty { flex: 1; display: flex; align-items: center; justify-content: center; }
 .chat-empty-inner { text-align: center; color: var(--muted); }
 .chat-empty-inner .brand-mark { width: 64px; height: 64px; opacity: .4; margin: 0 auto 1rem; }
@@ -764,14 +772,12 @@ img, video { max-width: 100%; }
 .icon-btn.active { background: var(--panel-3); color: var(--accent); }
 
 /* ---------------- connection + unread divider ---------------- */
-/* Sits over the top of the header rather than pushing it down, so nothing
-   reflows every time a flaky link drops. pointer-events: none keeps the buttons
-   underneath clickable — the bar is purely informational, and on a bad
-   connection it may be visible for a long time. */
+/* A row in the body's column, not an overlay: it takes real space, so the
+   interface below is never covered no matter how the sentence wraps. */
 .conn-bar {
-    position: fixed; top: 0; inset-inline: 0; z-index: 85;
+    flex: none;
     padding: calc(.45rem + env(safe-area-inset-top, 0px)) .8rem .45rem;
-    text-align: center; pointer-events: none;
+    text-align: center;
     background: var(--danger); color: var(--on-danger);
     font-size: .85rem; font-weight: 600;
 }
@@ -817,12 +823,7 @@ img, video { max-width: 100%; }
 }
 .msg-row.flash, .msg-sys.flash { animation: cw-flash 2.6s ease-out; border-radius: var(--radius); }
 
-/* ---------------- connection banner: reserve, never overlap ----------------
-   The bar is fixed so it cannot be scrolled away from, but a fixed element
-   covers whatever it sits on. Giving the view the same height back as padding
-   means the warning displaces the interface instead of hiding part of it. */
-:root { --conn-h: 2.2rem; }   /* replaced at runtime by the measured height */
-body.conn-down .view { padding-top: calc(var(--conn-h) + env(safe-area-inset-top, 0px)); }
+
 
 /* ---------------- sidebar header ----------------
    Brand and actions share a row until they cannot: with five icons and a 320px

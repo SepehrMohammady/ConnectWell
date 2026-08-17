@@ -23,6 +23,10 @@
 
 <body>
 
+    <!-- In the document flow, ABOVE the views: a fixed bar would cover the header
+         it warns over, and compensating for its height cannot be kept exact. -->
+    <div id="conn-bar" class="conn-bar" role="status" hidden></div>
+
     <!-- ============ Auth ============ -->
     <div id="view-auth" class="view center-view" hidden>
         <div class="auth-card">
@@ -265,7 +269,6 @@
         </div>
     </div>
 
-    <div id="conn-bar" class="conn-bar" role="status" hidden></div>
     <div id="modal-root" class="modal-backdrop" hidden></div>
     <div id="lightbox" class="lightbox" hidden></div>
     <div id="toast" class="toast" hidden></div>

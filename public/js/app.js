@@ -400,22 +400,9 @@ function setOnlineState(up) {
     if (!bar) return;
     bar.hidden = up;
     if (!up) bar.textContent = t('app.conn.lost');
-    // The bar is fixed to the top, so on its own it would cover the header it
-    // sits over. The view gives up exactly its height instead — MEASURED, not
-    // assumed: the sentence wraps to two lines on a narrow screen, and a guessed
-    // height would leave the header covered again precisely there.
-    document.body.classList.toggle('conn-down', !up);
-    measureConnBar();
+    // Nothing else to do: the bar is a row in the body's column, so showing it
+    // moves the interface down by exactly its own height, whatever that is.
 }
-
-function measureConnBar() {
-    const bar = $('conn-bar');
-    if (!bar || bar.hidden) return;
-    document.documentElement.style.setProperty('--conn-h', bar.offsetHeight + 'px');
-}
-
-// Rotating a phone changes how the sentence wraps.
-window.addEventListener('resize', measureConnBar);
 
 /* ---------------- websocket ---------------- */
 
