@@ -4,7 +4,7 @@ import { api, postBytes } from './api.js';
 import { makeAvatar } from './avatar.js';
 import {
     S, $, h, bus, net, toast, popSound, avatarEl, userName, convTitle, convOther,
-    fmtListTime, userAvatar, convAvatarSrc,
+    fmtListTime, userAvatar, convAvatarSrc, closeControl,
 } from './core.js';
 import {
     initChat, openConv, closeConv, renderHeader, onMsgNew, onMsgDeleted, onTyping, markRead, reconcileActive,
@@ -400,7 +400,22 @@ function setOnlineState(up) {
     if (!bar) return;
     bar.hidden = up;
     if (!up) bar.textContent = t('app.conn.lost');
+    // The bar is fixed to the top, so on its own it would cover the header it
+    // sits over. The view gives up exactly its height instead — MEASURED, not
+    // assumed: the sentence wraps to two lines on a narrow screen, and a guessed
+    // height would leave the header covered again precisely there.
+    document.body.classList.toggle('conn-down', !up);
+    measureConnBar();
 }
+
+function measureConnBar() {
+    const bar = $('conn-bar');
+    if (!bar || bar.hidden) return;
+    document.documentElement.style.setProperty('--conn-h', bar.offsetHeight + 'px');
+}
+
+// Rotating a phone changes how the sentence wraps.
+window.addEventListener('resize', measureConnBar);
 
 /* ---------------- websocket ---------------- */
 
@@ -586,7 +601,7 @@ function renderMe() {
     el.textContent = '';
     el.onclick = profileModal;          // the row itself opens the profile
     el.title = t('app.sidebar.meTitle');
-    el.append(avatarEl(S.me.displayName, { online: true, src: userAvatar(S.me) }));
+    el.append(avatarEl(S.me.displayName, { online: true, src: userAvatar(S.me), zoom: true }));
     el.append(h('div', {}, [
         h('div', { text: S.me.displayName }),
         h('div', { class: 'uname', text: '@' + S.me.username }),
@@ -697,7 +712,11 @@ function openModal(build) {
     const modal = h('div', { class: 'modal' });
     root.append(modal);
     root.hidden = false;
-    const close = () => { root.hidden = true; root.textContent = ''; };
+    // Three ways out, because the backdrop alone is not discoverable and on a
+    // phone a tall modal barely leaves any backdrop to tap.
+    let detach = () => { };
+    const close = () => { root.hidden = true; root.textContent = ''; detach(); };
+    detach = closeControl(modal, close, t('app.close'));
     root.onclick = (e) => { if (e.target === root) close(); };
     build(modal, close);
 }
@@ -710,6 +729,39 @@ function userRowBtn(u, onclick) {
         h('div', { class: 'u-sub', text: '@' + u.username }),
     ]));
     return row;
+}
+
+// Same shape as the new-chat picker: search, avatars, one tap to add.
+function addMemberModal(conv) {
+    openModal((modal, close) => {
+        modal.append(h('h3', { text: t('app.convInfo.addMemberTitle') }));
+        const search = h('input', { type: 'search', placeholder: t('app.newChat.searchPlaceholder') });
+        const list = h('div', { class: 'list' });
+        modal.append(search, list);
+        const render = () => {
+            list.textContent = '';
+            const q = search.value.trim().toLowerCase();
+            const addable = [...S.users.values()]
+                .filter((u) => !conv.members.includes(u.id))
+                .filter((u) => !q || u.displayName.toLowerCase().includes(q) || u.username.toLowerCase().includes(q));
+            if (!addable.length) {
+                list.append(h('p', { class: 'field-hint', text: t('app.convInfo.noneToAdd') }));
+                return;
+            }
+            for (const u of addable) {
+                list.append(userRowBtn(u, async () => {
+                    try {
+                        await api('api/conversations/' + conv.id + '/members', {
+                            method: 'POST', body: { userId: u.id },
+                        });
+                        close();
+                    } catch (e) { toast(e.message); }
+                }));
+            }
+        };
+        search.addEventListener('input', render);
+        render();
+    });
 }
 
 function newChatModal() {
@@ -870,16 +922,14 @@ function convInfoModal() {
 
         const addable = [...S.users.values()].filter((u) => !conv.members.includes(u.id));
         if (addable.length) {
-            const sel = h('select');
-            sel.append(h('option', { value: '', text: t('app.convInfo.addMember') }));
-            for (const u of addable) sel.append(h('option', { value: String(u.id), text: u.displayName }));
-            sel.addEventListener('change', async () => {
-                if (!sel.value) return;
-                try { await api('api/conversations/' + conv.id + '/members', { method: 'POST', body: { userId: Number(sel.value) } }); close(); }
-                catch (e) { toast(e.message); }
-            });
+            // A styled button opening the same searchable people list used to
+            // start a chat, rather than a raw <select> the browser skins itself.
             const r = h('div', { class: 'modal-row' });
-            r.append(sel);
+            r.append(h('button', {
+                class: 'btn small', type: 'button', text: t('app.convInfo.addMember'),
+                onclick: () => addMemberModal(conv),
+            }));
+            r.append(h('div', { class: 'rec-spacer' }));
             modal.append(r);
         }
 
@@ -964,7 +1014,7 @@ function photoPicker({ src, name, group = false, onSave, onRemove, notify }) {
     const holder = h('div', { class: 'photo-holder' });
     const paint = () => {
         holder.textContent = '';
-        holder.append(avatarEl(name, { size: 'big', group, src: previewUrl || shownSrc }));
+        holder.append(avatarEl(name, { size: 'big', group, src: previewUrl || shownSrc, zoom: true }));
     };
     const clearPreview = () => {
         if (previewUrl) URL.revokeObjectURL(previewUrl);

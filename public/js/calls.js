@@ -6,7 +6,7 @@ import { t } from './i18n.js';
 import { ecoOn, onEcoChange } from './eco.js';
 import {
     S, $, h, net, toast, avatarEl, userName, convTitle, ringStart, ringStop,
-    userById, userAvatar, convAvatarSrc,
+    ringbackStart, ringbackStop, userById, userAvatar, convAvatarSrc,
 } from './core.js';
 
 let iceServers = null;
@@ -324,6 +324,7 @@ export async function startCall(convId, kind) {
     };
     net.send('call:start', { convId, kind, eco: ecoOn() });
     showOverlay();
+    ringbackStart();
 }
 
 export async function joinCall(callId, convId, kind) {
@@ -348,6 +349,7 @@ export function hangup() {
 
 function teardown() {
     if (!cur) return;
+    ringbackStop();
     for (const [id] of cur.peers) dropPeer(id);
     cur.local?.getTracks().forEach((track) => track.stop());
     clearInterval(cur.timer);
@@ -382,6 +384,8 @@ export function onCallState(d) {
         // The per-peer video budget is divided by the mesh size, so it has to be
         // recomputed whenever somebody joins or leaves.
         applyAllEncodingCaps();
+        // Somebody picked up — the ringback has done its job.
+        if (cur.peers.size > 0) ringbackStop();
         if (cur.eco !== wasEco) applyCaptureProfile();
         // What the server thinks THIS connection asked for. If the local switch
         // has moved since — flipped before the call had an id, or flipped while
@@ -400,7 +404,7 @@ export function onCallRing(d) {
     if (inCall() || d.from === S.me.id) return;
     dismissRing();
     const conv = S.convs.get(d.convId);
-    ring = { ...d, timeout: setTimeout(dismissRing, 45_000) };
+    ring = { ...d, timeout: setTimeout(dismissRing, 60_000) };
     $('ring-title').textContent = userName(d.from);
     // One key per rendered sentence: the kind word and the ' · <group>' tail are
     // not separable fragments a translator could safely reorder.
@@ -416,14 +420,23 @@ export function onCallRing(d) {
 }
 
 export function onCallDeclined(d) {
-    if (cur && cur.callId === d.callId) toast(t('call.declined', { name: userName(d.userId) }));
+    if (!cur || cur.callId !== d.callId) return;
+    toast(t('call.declined', { name: userName(d.userId) }));
+    // In a one-to-one call the only person who could answer just said no, so
+    // ringing on until the no-answer timeout is only noise. A group call may
+    // still be picked up by somebody else, so it keeps ringing there.
+    const conv = S.convs.get(cur.convId);
+    if (conv?.type !== 'group') ringbackStop();
 }
 
 export function onCallEnded(d) {
     if (d.convId) S.calls.delete(d.convId);
     else for (const [k, v] of S.calls) if (v.callId === d.callId) S.calls.delete(k);
     if (ring && ring.callId === d.callId) dismissRing();
-    if (cur && cur.callId === d.callId) { teardown(); toast(t('call.ended')); }
+    if (cur && cur.callId === d.callId) {
+        teardown();
+        toast(t(d.reason === 'no_answer' ? 'call.no_answer' : 'call.ended'));
+    }
     updateChip();
 }
 

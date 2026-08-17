@@ -44,7 +44,7 @@ export async function postBytes(path, blob) {
     return data;
 }
 
-export function upload(convId, blob, { fileName, mime, msgType, duration, caption, onProgress } = {}) {
+export function upload(convId, blob, { fileName, mime, msgType, duration, caption, replyTo, onProgress } = {}) {
     return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open('POST', 'api/conversations/' + convId + '/upload');
@@ -56,6 +56,7 @@ export function upload(convId, blob, { fileName, mime, msgType, duration, captio
         // Rides as a header because the body is the raw file. Percent-encoding
         // keeps it ASCII; the server caps the length.
         if (caption) xhr.setRequestHeader('X-Caption', encodeURIComponent(caption));
+        if (replyTo) xhr.setRequestHeader('X-Reply-To', String(replyTo));
         xhr.upload.onprogress = (e) => {
             if (onProgress && e.lengthComputable) onProgress(e.loaded / e.total);
         };

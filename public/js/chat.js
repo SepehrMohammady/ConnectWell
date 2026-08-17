@@ -6,12 +6,15 @@ import { ecoOn, shrinkImage } from './eco.js';
 import {
     S, $, h, bus, net, toast, avatarEl, userName, convTitle, convOther,
     fmtTime, fmtDay, sameDay, fmtSize, fmtDur, userById, userAvatar, convAvatarSrc,
+    closeControl,
 } from './core.js';
 
 const MIC_SVG = 'M12 14c1.7 0 3-1.3 3-3V5c0-1.7-1.3-3-3-3S9 3.3 9 5v6c0 1.7 1.3 3 3 3zm5.3-3c0 3-2.5 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.4 2.7 6.2 6 6.7V21h2v-3.3c3.3-.5 6-3.3 6-6.7h-1.7z';
 const FILE_SVG = 'M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13z';
 const REACT_SVG = 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z';
 const FWD_SVG = 'M14 9V5l7 7-7 7v-4.1c-5 0-8.5 1.6-11 5.1 1-5 4-10 11-11z';
+// The forward arrow mirrored: an arrow curving back the way the text came from.
+const REPLY_SVG = 'M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z';
 const DL_SVG = 'M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z';
 const CLOSE_SVG = 'M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z';
 const EDIT_SVG = 'M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z';
@@ -39,12 +42,75 @@ function msgStore(convId) {
     return S.msgs.get(convId);
 }
 
+/* ---------------- replying ----------------
+   One pending reply at a time, belonging to the open conversation. Held as the
+   message id plus a snapshot for the strip; the server re-resolves the quote
+   from the id when the reply is sent, so an edit between choosing and sending
+   is reflected rather than frozen. */
+
+let replyTo = null;   // { id, convId, senderId, text }
+
+export function setReplyTo(m) {
+    replyTo = {
+        id: m.id, convId: m.conversationId, senderId: m.senderId,
+        text: quoteText(m),
+    };
+    renderReplyBar();
+    const box = $('composer-input');
+    if (box) box.focus();
+}
+
+export function clearReplyTo() {
+    replyTo = null;
+    renderReplyBar();
+}
+
+// One line describing a message well enough to recognise it in a quote.
+function quoteText(m) {
+    if (m.deleted) return t('chat.msg_deleted');
+    if (m.type === 'text') return m.content || '';
+    if (m.content) return m.content;                 // a file's caption names it best
+    return previewLabelFor(m);
+}
+
+function previewLabelFor(m) {
+    switch (m.type) {
+        case 'image': return t('app.preview.image');
+        case 'video': return t('app.preview.video');
+        case 'videomsg': return t('app.preview.videomsg');
+        case 'audio': return t('app.preview.audio');
+        case 'voice': return t('app.preview.voice');
+        default: return t('app.preview.file', { name: m.fileName || t('app.preview.fileFallback') });
+    }
+}
+
+function renderReplyBar() {
+    const bar = $('reply-bar');
+    if (!bar) return;
+    if (!replyTo) { bar.hidden = true; bar.textContent = ''; return; }
+    bar.textContent = '';
+    bar.append(h('div', { class: 'reply-strip' }, [
+        h('div', { class: 'reply-who', text: t('chat.replying_to', { name: userName(replyTo.senderId) }) }),
+        h('div', { class: 'reply-text', dir: 'auto', text: replyTo.text }),
+    ]));
+    const x = h('button', {
+        class: 'icon-btn', type: 'button',
+        title: t('chat.reply_cancel'), 'aria-label': t('chat.reply_cancel'),
+        onclick: clearReplyTo,
+    });
+    x.append(svgIcon(CLOSE_SVG));
+    bar.append(x);
+    bar.hidden = false;
+}
+
 /* ---------------- open / render conversation ---------------- */
 
 export async function openConv(convId) {
     const conv = S.convs.get(convId);
     if (!conv) return;
     closeFilter();   // a filter must never survive a conversation switch
+    // A half-written reply belongs to the thread it was started in.
+    if (replyTo && replyTo.convId !== convId) clearReplyTo();
     // The previous conversation's unread line is spent; only the one being
     // opened gets a fresh boundary computed below.
     if (S.activeConvId && S.activeConvId !== convId) msgStore(S.activeConvId).unreadAt = 0;
@@ -128,6 +194,7 @@ export async function jumpToMessage(convId, messageId) {
 
 export function closeConv() {
     closeFilter();
+    clearReplyTo();
     if (S.activeConvId) msgStore(S.activeConvId).unreadAt = 0;
     S.activeConvId = null;
     clearTyping();
@@ -142,7 +209,9 @@ export function renderHeader() {
     $('chat-title').textContent = convTitle(conv);
     const av = $('chat-avatar');
     av.replaceWith(Object.assign(
-        avatarEl(convTitle(conv), { group: conv.type === 'group', src: convAvatarSrc(conv) }),
+        avatarEl(convTitle(conv), {
+            group: conv.type === 'group', src: convAvatarSrc(conv), zoom: true,
+        }),
         { id: 'chat-avatar' }));
     if (conv.type === 'group') {
         $('chat-sub').textContent = t('chat.members', { n: conv.members.length });
@@ -199,6 +268,17 @@ function renderAll(convId) {
 }
 
 /* ---------------- message elements ---------------- */
+
+// Message text carries its OWN direction. The interface language decides the
+// layout, but a Persian message in an English interface still has to read
+// right-to-left — and an English message in a Persian one left-to-right. dir
+//="auto" resolves that per message from its first strong character, which is
+// exactly the rule a reader expects.
+function msgTextEl(text) {
+    const el = h('span', { class: 'msg-text', dir: 'auto' });
+    el.append(linkify(text));
+    return el;
+}
 
 function linkify(text) {
     const frag = document.createDocumentFragment();
@@ -296,7 +376,7 @@ function bubbleContent(m) {
     const unplayable = (el) => () => el.replaceWith(fileChipEl(m, src, true));
     switch (m.type) {
         case 'text':
-            return linkify(m.content || '');
+            return msgTextEl(m.content || '');
         case 'image': {
             const img = h('img', { class: 'msg-img', src, alt: m.fileName || t('chat.image_alt'), loading: 'lazy' });
             img.addEventListener('click', () => showLightbox(src, m.fileName));
@@ -387,6 +467,9 @@ function msgEl(m) {
     if (m.deleted) {
         bubble.append(t('chat.msg_deleted'));
     } else {
+        // What this message answers. Clicking it walks the history back to the
+        // original — the same jump the activity bell uses.
+        if (m.replyTo) bubble.append(replyQuoteEl(m));
         bubble.append(bubbleContent(m));
         // A caption is a SIBLING of the media, never inside bubbleContent: that
         // returns early for a purged file, and its media error handlers replace
@@ -588,10 +671,58 @@ export function onRead(convId, userId, lastReadId) {
     }
 }
 
+// The quoted strip shown above a reply's own text.
+// Every message quoting `id` in the open conversation, re-rendered. The server
+// resolves quotes live, so the client must not keep showing a copy that the
+// original has since moved on from.
+function refreshQuotesOf(convId, id, patch) {
+    const store = S.msgs.get(convId);
+    if (!store) return;
+    for (const m of store.list) {
+        if (m.replyTo !== id) continue;
+        m.replySource = m.replySource ? { ...m.replySource, ...patch } : m.replySource;
+        if (S.activeConvId !== convId) continue;
+        for (const row of document.querySelectorAll('.msg-list [data-mid="' + m.id + '"]')) {
+            const old = row.querySelector('.reply-quote');
+            if (old) old.replaceWith(replyQuoteEl(m));
+        }
+    }
+}
+
+function replyQuoteEl(m) {
+    const src = m.replySource;
+    const q = h('button', { class: 'reply-quote', type: 'button' });
+    if (!src) {
+        // The original is gone entirely (its conversation history was trimmed):
+        // say so rather than offer a jump that goes nowhere.
+        q.append(h('div', { class: 'reply-text', text: t('chat.reply_gone') }));
+        q.disabled = true;
+        return q;
+    }
+    q.append(h('div', { class: 'reply-who', text: userName(src.senderId) }));
+    q.append(h('div', {
+        class: 'reply-text', dir: 'auto',
+        text: src.deleted ? t('chat.msg_deleted') : (src.content || previewLabelFor(src)),
+    }));
+    q.addEventListener('click', (e) => {
+        e.stopPropagation();
+        jumpToMessage(m.conversationId, src.id);
+    });
+    return q;
+}
+
 /* ---------------- per-message actions ---------------- */
 
 function msgActions(m, mine) {
     const acts = h('div', { class: 'msg-acts' });
+    // Replying is for everyone, including your own messages, and works on files
+    // as well as text. Only a purged or removed message has nothing to answer.
+    if (!m.purged && !m.deleted && m.type !== 'system') {
+        const qb = h('button', { class: 'msg-act', title: t('chat.reply'), type: 'button' });
+        qb.append(svgIcon(REPLY_SVG, 'ic-dir'));   // directional glyph: mirrors under RTL
+        qb.addEventListener('click', (e) => { e.stopPropagation(); setReplyTo(m); });
+        acts.append(qb);
+    }
     // Reacting is for the audience, never the sender.
     if (!mine) {
         const rb = h('button', { class: 'msg-act', title: t('chat.react'), type: 'button' });
@@ -632,7 +763,9 @@ function editModal(m) {
     const modal = h('div', { class: 'modal' });
     root.append(modal);
     root.hidden = false;
-    const close = () => { root.hidden = true; root.textContent = ''; root.onclick = null; };
+    let detach = () => { };
+    const close = () => { root.hidden = true; root.textContent = ''; root.onclick = null; detach(); };
+    detach = closeControl(modal, close, t('app.close'));
     root.onclick = (e) => { if (e.target === root) close(); };
 
     modal.append(h('h3', { text: t('chat.edit') }));
@@ -663,6 +796,8 @@ export function onMsgEdited(message) {
     const store = S.msgs.get(convId);
     const m = store?.list.find((x) => x.id === message.id);
     if (m) { m.content = message.content; m.editedAt = message.editedAt; }
+    // Anything quoting this message is now showing the previous wording.
+    refreshQuotesOf(convId, message.id, { content: message.content });
     if (S.activeConvId !== convId || !m) return;
     for (const el of document.querySelectorAll('.msg-list [data-mid="' + message.id + '"]')) {
         const bubble = el.querySelector('.bubble');
@@ -673,10 +808,13 @@ export function onMsgEdited(message) {
             for (const node of [...bubble.childNodes]) {
                 if (node === meta || (node.classList && (node.classList.contains('meta')
                     || node.classList.contains('msg-del') || node.classList.contains('sender')
-                    || node.classList.contains('fwd-tag')))) continue;
+                    || node.classList.contains('fwd-tag')
+                    // The quote is part of the message's identity, not its body:
+                    // editing the text must not detach what it was answering.
+                    || node.classList.contains('reply-quote')))) continue;
                 node.remove();
             }
-            bubble.insertBefore(linkify(m.content || ''), meta || null);
+            bubble.insertBefore(msgTextEl(m.content || ''), meta || null);
         } else {
             const cap = bubble.querySelector('.msg-caption');
             if (cap) cap.textContent = m.content || '';
@@ -688,14 +826,16 @@ export function onMsgEdited(message) {
 // message, so no reader was ever shown an earlier version.
 
 function forwardModal(m) {
-    // A small local modal on #modal-root; app.js's helper is not importable from
-    // here without creating a module cycle.
+    // A small local modal on #modal-root. app.js's opener is not importable here
+    // without a module cycle, so the shared close control lives in core.js.
     const root = $('modal-root');
     root.textContent = '';
     const modal = h('div', { class: 'modal' });
     root.append(modal);
     root.hidden = false;
-    const close = () => { root.hidden = true; root.textContent = ''; root.onclick = null; };
+    let detach = () => { };
+    const close = () => { root.hidden = true; root.textContent = ''; root.onclick = null; detach(); };
+    detach = closeControl(modal, close, t('app.close'));
     root.onclick = (e) => { if (e.target === root) close(); };
 
     modal.append(h('h3', { text: t('chat.fwd_title') }));
@@ -823,6 +963,7 @@ function pruneSeparators() {
 }
 
 export function onMsgDeleted(convId, messageId, tombstone) {
+    refreshQuotesOf(convId, messageId, { deleted: true, content: null, fileName: null });
     const store = S.msgs.get(convId);
     if (store) {
         const m = store.list.find((x) => x.id === messageId);
@@ -1004,12 +1145,17 @@ async function sendText() {
     // Cleared optimistically so typing feels instant, but PUT BACK if the send
     // fails — losing what someone just wrote because the connection dropped is
     // the worst possible moment to lose it.
+    // Captured before the field is cleared: a failed send restores both the text
+    // and what it was answering, so the reply is not silently downgraded into a
+    // loose message on retry.
+    const pendingReply = replyTo && replyTo.convId === convId ? replyTo : null;
     input.value = '';
     autosize();
     saveDraft(convId, '');
+    clearReplyTo();
     try {
         const { message } = await api('api/conversations/' + convId + '/messages', {
-            method: 'POST', body: { content },
+            method: 'POST', body: { content, replyTo: pendingReply ? pendingReply.id : undefined },
         });
         onMsgNew(message);           // ws echo is deduped by id
         bus.emit('msg-sent', message);
@@ -1017,10 +1163,16 @@ async function sendText() {
         // Something may already have been typed while the request was in flight.
         // Both texts are the sender's, so both are kept, oldest first — dropping
         // either one is the loss this whole path exists to prevent.
-        const pending = S.activeConvId === convId ? input.value : loadDraft(convId);
-        const merged = pending ? content + '\n' + pending : content;
+        const typedSince = S.activeConvId === convId ? input.value : loadDraft(convId);
+        const merged = typedSince ? content + '\n' + typedSince : content;
         if (S.activeConvId === convId) { input.value = merged; autosize(); }
         saveDraft(convId, merged);
+        // Unconditionally, and never gated on there being extra text: the retry
+        // has to answer the same message, or a reply quietly becomes a loose one.
+        if (pendingReply && S.activeConvId === convId && !replyTo) {
+            replyTo = pendingReply;
+            renderReplyBar();
+        }
         // A rejection the server explained (too long, rate limited, signed out)
         // is not a connection problem, and telling someone to check their
         // connection would leave them retrying something that cannot succeed.
@@ -1039,6 +1191,9 @@ function autosize() {
 async function uploadBlob(blob, { fileName, mime, msgType, duration, caption }) {
     const convId = S.activeConvId;
     if (!convId) return;
+    // Consumed here so a second file in the same batch is not threaded as well.
+    const pendingReply = replyTo && replyTo.convId === convId ? replyTo : null;
+    if (pendingReply) clearReplyTo();
     const list = $('msg-list');
     const bar = h('i');
     const temp = h('div', { class: 'msg-row mine' }, [
@@ -1052,12 +1207,19 @@ async function uploadBlob(blob, { fileName, mime, msgType, duration, caption }) 
     try {
         const { message } = await upload(convId, blob, {
             fileName, mime, msgType, duration, caption,
+            replyTo: pendingReply ? pendingReply.id : undefined,
             onProgress: (f) => { bar.style.width = Math.round(f * 100) + '%'; },
         });
         temp.remove();
         onMsgNew(message);
         bus.emit('msg-sent', message);
     } catch (e) {
+        // Same reasoning as the text path: a retry must still answer the same
+        // message rather than land in the thread unattached.
+        if (pendingReply && S.activeConvId === convId && !replyTo) {
+            replyTo = pendingReply;
+            renderReplyBar();
+        }
         temp.querySelector('.up-name').textContent = t('chat.upload_failed', { error: e.message });
         setTimeout(() => temp.remove(), 2500);
     }
@@ -1097,12 +1259,17 @@ function captionDialog(files) {
         root.append(modal);
         root.hidden = false;
         let done = false;
+        let detach = () => { };
         const finish = (val) => {
             if (done) return;
             done = true;
             root.hidden = true; root.textContent = ''; root.onclick = null;
+            detach();
             resolve(val);
         };
+        // Closing without answering means "do not send", the same as the
+        // backdrop — never an empty caption on files already chosen.
+        detach = closeControl(modal, () => finish(null), t('app.close'));
         root.onclick = (e) => { if (e.target === root) finish(null); };
 
         modal.append(h('h3', { text: t('chat.caption_title', { n: files.length }) }));
@@ -1637,6 +1804,8 @@ function showLightbox(src, name) {
 /* ---------------- init ---------------- */
 
 export function initChat() {
+    // Any avatar anywhere can ask for its photo full size.
+    bus.on('image-zoom', ({ src, name }) => showLightbox(src, name));
     $('btn-send').addEventListener('click', sendText);
     const input = $('composer-input');
     input.addEventListener('input', () => saveDraftSoon(S.activeConvId, input.value));
@@ -1671,6 +1840,9 @@ export function initChat() {
 
     $('btn-videomsg').addEventListener('click', openVideoMsg);
     $('videomsg-cancel').addEventListener('click', closeVideoMsg);
+    // Same teardown as Cancel — closing must release the camera, not just
+    // hide the window.
+    $('videomsg-close').addEventListener('click', closeVideoMsg);
     $('videomsg-flip').addEventListener('click', flipVideoMsgCamera);
     $('videomsg-record').addEventListener('click', videoMsgRecordToggle);
     $('videomsg-send').addEventListener('click', sendVideoMsg);

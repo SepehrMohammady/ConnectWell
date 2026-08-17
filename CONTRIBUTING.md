@@ -57,7 +57,8 @@ surprising while fixing a bug, that is exactly what the comment should say.
 - One concern per PR, with a description of what changes for the user.
 - Run `npm test` first.
 - Bump the version in `package.json` as part of the change (see the versioning
-  table in the README), since the UI shows it and it must match what shipped.
+  table in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#versioning)), since the UI
+  shows it and it must match what shipped.
 - Say how you verified it. "Tested a call between two browsers on the same LAN"
   is worth more than a green checkmark.
 

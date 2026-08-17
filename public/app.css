@@ -816,3 +816,75 @@ img, video { max-width: 100%; }
     100% { background: transparent; }
 }
 .msg-row.flash, .msg-sys.flash { animation: cw-flash 2.6s ease-out; border-radius: var(--radius); }
+
+/* ---------------- connection banner: reserve, never overlap ----------------
+   The bar is fixed so it cannot be scrolled away from, but a fixed element
+   covers whatever it sits on. Giving the view the same height back as padding
+   means the warning displaces the interface instead of hiding part of it. */
+:root { --conn-h: 2.2rem; }   /* replaced at runtime by the measured height */
+body.conn-down .view { padding-top: calc(var(--conn-h) + env(safe-area-inset-top, 0px)); }
+
+/* ---------------- sidebar header ----------------
+   Brand and actions share a row until they cannot: with five icons and a 320px
+   sidebar the title was being squeezed to nothing, so the actions drop to their
+   own line rather than crop the name. A floor on the brand is what forces the
+   wrap; without it the title would shrink to a sliver and never wrap. */
+.sb-head { flex-wrap: wrap; row-gap: .35rem; }
+.sb-head .brand { flex: 1 1 auto; min-width: 8rem; }
+.sb-actions { margin-inline-start: auto; }
+
+/* ---------------- close control on every modal ---------------- */
+.modal { position: relative; }
+/* Sticky rather than absolute: .modal scrolls its own content, and an absolute
+   button would scroll away with it — worst in exactly the tall modals that need
+   it most. The negative block-end margin cancels its own height so it overlays
+   the heading instead of pushing everything down, and the solid background keeps
+   text from showing through as it passes underneath. */
+.modal-close {
+    position: sticky; top: 0; align-self: flex-end;
+    margin-block-end: -32px;
+    width: 32px; height: 32px; border-radius: 9px; flex: none;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--panel); color: var(--muted);
+    font-size: 1rem; line-height: 1; z-index: 3;
+}
+@media (hover: hover) { .modal-close:hover { background: var(--panel-3); color: var(--text); } }
+/* Keeps a heading from running underneath the button. */
+.modal h3 { padding-inline-end: 2.2rem; }
+
+/* ---------------- a photo can be opened full size ---------------- */
+.avatar.zoomable { cursor: zoom-in; }
+
+/* ---------------- replying ---------------- */
+.reply-bar {
+    display: flex; align-items: center; gap: .5rem;
+    padding: .5rem .6rem .1rem;
+    padding-inline-start: .8rem;     /* logical, so it mirrors under RTL */
+    border-top: 1px solid var(--border);
+}
+.reply-strip {
+    flex: 1; min-width: 0;
+    border-inline-start: 3px solid var(--accent);
+    padding-inline-start: .6rem;
+}
+.reply-who { font-size: .78rem; font-weight: 700; color: var(--accent); }
+.reply-text {
+    font-size: .82rem; color: var(--muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* The quote inside a sent message. text-align:start rather than left so it
+   follows the bubble's own direction under RTL. */
+.reply-quote {
+    display: block; width: 100%; text-align: start;
+    margin-bottom: .35rem; padding: .3rem .5rem;
+    border-inline-start: 3px solid var(--accent);
+    border-radius: 6px; background: var(--chip-bg);
+    cursor: pointer;
+}
+.reply-quote:disabled { cursor: default; opacity: .7; }
+@media (hover: hover) { .reply-quote:not(:disabled):hover { filter: brightness(1.15); } }
+.reply-quote .reply-text { font-size: .8rem; }
+
+/* Message text carries its own direction via dir="auto", so it must be a block
+   for that direction to govern its own line breaks rather than the bubble's. */
+.msg-text { display: block; }

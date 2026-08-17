@@ -54,6 +54,14 @@ const BASELINE_REF = (() => {
 // to trace to. Adding a key here is a deliberate act — it is the only way to
 // bypass the check, so keep the reason honest.
 const NEW_SINCE_BASELINE = {
+    'app.close': 'close control on modals (0.19.0)',
+    'app.convInfo.addMemberTitle': 'add-member picker (0.19.0)',
+    'app.convInfo.noneToAdd': 'add-member picker (0.19.0)',
+    'call.no_answer': 'call no-answer timeout (0.19.0)',
+    'chat.reply': 'replies (0.19.0)',
+    'chat.reply_cancel': 'replies (0.19.0)',
+    'chat.reply_gone': 'replies (0.19.0)',
+    'chat.replying_to': 'replies (0.19.0)',
     'ui.sidebar.activity': 'activity center (0.17.0)',
     'activity.title': 'activity center (0.17.0)',
     'activity.empty': 'activity center (0.17.0)',

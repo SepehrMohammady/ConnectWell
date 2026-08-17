@@ -173,12 +173,18 @@
                 <!-- Shown once per device the first time a file is attached. -->
                 <div id="attach-note" class="attach-note" role="status" hidden></div>
 
+                <!-- What the next message answers, if anything. Sits directly on
+                     top of the composer so the quote and the reply read together. -->
+                <div id="reply-bar" class="reply-bar" hidden></div>
                 <footer class="composer" id="composer">
                     <label class="icon-btn" title="Attach file" data-i18n-title="ui.composer.attach">
                         <input id="file-input" type="file" multiple hidden>
                         <svg viewBox="0 0 24 24"><path d="M16.5 6.8v9.7c0 2.5-2 4.5-4.5 4.5s-4.5-2-4.5-4.5V5.5C7.5 3.6 9.1 2 11 2s3.5 1.6 3.5 3.5v10c0 1.1-.9 2-2 2s-2-.9-2-2V6.8H12v8.7c0 .3.2.5.5.5s.5-.2.5-.5v-10c0-1.1-.9-2-2-2s-2 .9-2 2v11c0 1.7 1.3 3 3 3s3-1.3 3-3V6.8h1.5z"/></svg>
                     </label>
-                    <textarea id="composer-input" rows="1" placeholder="Message" data-i18n-placeholder="ui.composer.input" maxlength="4000"></textarea>
+                    <!-- dir="auto" so the box follows what is being TYPED rather
+                         than the interface language: Persian typed into an English
+                         UI must still lay out right-to-left, and vice versa. -->
+                    <textarea id="composer-input" dir="auto" rows="1" placeholder="Message" data-i18n-placeholder="ui.composer.input" maxlength="4000"></textarea>
                     <button id="btn-voice" class="icon-btn" title="Voice message" data-i18n-title="ui.composer.voice" type="button">
                         <svg viewBox="0 0 24 24"><path d="M12 14c1.7 0 3-1.3 3-3V5c0-1.7-1.3-3-3-3S9 3.3 9 5v6c0 1.7 1.3 3 3 3zm5.3-3c0 3-2.5 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.4 2.7 6.2 6 6.7V21h2v-3.3c3.3-.5 6-3.3 6-6.7h-1.7z"/></svg>
                     </button>
@@ -243,6 +249,7 @@
 
     <div id="videomsg-modal" class="modal-backdrop" hidden>
         <div class="modal">
+            <button id="videomsg-close" class="modal-close" type="button" title="Close" data-i18n-title="app.close" data-i18n-aria-label="app.close"><span>✕</span></button>
             <h3 data-i18n="ui.videomsg.title">Video message</h3>
             <video id="videomsg-preview" playsinline muted autoplay></video>
             <div class="modal-row">

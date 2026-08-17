@@ -1,6 +1,6 @@
 {
   "name": "connectwell",
-  "version": "0.18.0",
+  "version": "0.19.0",
   "private": true,
   "description": "Self-hosted private messenger with file sharing and audio/video calls — one Node process, SQLite, no build step",
   "keywords": [

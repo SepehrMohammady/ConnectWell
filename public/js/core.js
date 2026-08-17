@@ -140,16 +140,68 @@ function hueFor(str) {
     return x;
 }
 
+// The ✕ every modal gets, plus Escape. Returns a detach function so a modal that
+// closes by other means still removes its key listener.
+let lastModalDetach = null;
+export function closeControl(modal, onClose, label = 'Close') {
+    // #modal-root holds one modal at a time, and opening a second from inside
+    // the first (group info -> add member) replaces its DOM without ever calling
+    // its close(). Retiring the previous listener here is what stops one Escape
+    // from reaching a modal that is no longer on screen.
+    if (lastModalDetach) lastModalDetach();
+    const onKey = (e) => {
+        if (e.key !== 'Escape') return;
+        // The lightbox sits above the modal and owns Escape while it is open.
+        // Both listeners are on document in the capture phase, so stopPropagation
+        // cannot hold this one back — it has to stand down on its own.
+        const lb = document.getElementById('lightbox');
+        if (lb && !lb.hidden) return;
+        e.stopPropagation();
+        onClose();
+    };
+    document.addEventListener('keydown', onKey, true);
+    const detach = () => {
+        document.removeEventListener('keydown', onKey, true);
+        if (lastModalDetach === detach) lastModalDetach = null;
+    };
+    lastModalDetach = detach;
+    const btn = h('button', {
+        class: 'modal-close', type: 'button', title: label, 'aria-label': label,
+        onclick: onClose,
+    });
+    btn.append(h('span', { text: '✕' }));
+    modal.append(btn);
+    return detach;
+}
+
 // `name` stays positional and a photo is opt-in through `src`, so no call site
 // reorders arguments and the initials/hue path is untouched when there is none.
-export function avatarEl(name, { online = null, size = '', group = false, src = null } = {}) {
+export function avatarEl(name, { online = null, size = '', group = false, src = null, zoom = false } = {}) {
     const el = h('div', { class: 'avatar ' + size });
+    // Only a real photo is worth opening; generated initials are not.
+    let canZoom = false;
+    if (src && zoom) {
+        canZoom = true;
+        el.classList.add('zoomable');
+        el.title = name;
+        el.addEventListener('click', (e) => {
+            if (!canZoom) return;
+            // The row underneath usually opens a profile or a conversation, and
+            // asking to see the picture is not asking for that.
+            e.stopPropagation();
+            bus.emit('image-zoom', { src, name });
+        });
+    }
     const dot = () => {
         if (online !== null) el.append(h('span', { class: 'dot' + (online ? ' on' : '') }));
     };
     // Assigning textContent wipes any child, so the photo and the initials must
     // be mutually exclusive rather than sequential.
     const fallback = () => {
+        // The photo is gone (stale token, deleted file): initials cannot be
+        // opened full size, so retire the affordance with the image.
+        canZoom = false;
+        el.classList.remove('zoomable');
         el.textContent = group ? '👥' : initials(name);
         if (!group) el.style.background = `hsl(${hueFor(name)} 45% 38%)`;
         dot();
@@ -250,4 +302,22 @@ export function ringStart() {
 export function ringStop() {
     clearInterval(ringTimer);
     ringTimer = null;
+}
+
+/* The caller's own ringback: what you hear while the other phone is ringing.
+   Deliberately unlike ringStart() — lower, slower, quieter — because the two can
+   never mean the same thing. Silence here is indistinguishable from a call that
+   failed to start, which is the doubt this removes. The 4s cadence mirrors what
+   a telephone network sends. */
+let ringbackTimer = null;
+export function ringbackStart() {
+    if (ringbackTimer) return;
+    const play = () => { try { tone(440, 0, 1.1, 0.05); tone(480, 0, 1.1, 0.04); } catch { } };
+    play();
+    ringbackTimer = setInterval(play, 4000);
+}
+
+export function ringbackStop() {
+    clearInterval(ringbackTimer);
+    ringbackTimer = null;
 }
