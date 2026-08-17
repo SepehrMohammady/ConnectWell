@@ -235,7 +235,7 @@ export default {
     "ui.auth.register.username": "نام کاربری (۳ تا ۲۰ حرف انگلیسی، رقم یا _)",
     "ui.auth.tab.createAccount": "ساخت حساب",
     "ui.auth.tab.signIn": "ورود",
-    "ui.auth.tagline": "پیام‌رسان خصوصی از ConnectWell",
+    "ui.auth.tagline": "پیام‌رسان خصوصی",
     "ui.call.cam": "دوربین",
     "ui.call.chip.join": "پیوستن",
     "ui.call.flip": "تعویض دوربین",

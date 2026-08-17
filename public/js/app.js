@@ -45,12 +45,17 @@ async function boot() {
 // from the build that is actually deployed. Year is rendered client-side.
 async function initFooter() {
     let version = '';
-    try { version = (await api('api/health')).version || ''; }
-    catch { /* unreachable server: still show the copyright */ }
+    let brand = 'ConnectWell';
+    try {
+        const health = await api('api/health');
+        version = health.version || '';
+        brand = health.brand || brand;
+    } catch { /* unreachable server: still show the copyright */ }
     // One key per shape rather than glued fragments: a translator must be able to
-    // move the year and the version around each other. 'ConnectWell' is passed in as
-    // a slot so the brand itself never enters a dictionary.
-    const vars = { version, year: new Date().getFullYear(), brand: 'ConnectWell' };
+    // move the year and the version around each other. The brand is passed in as
+    // a slot so it never enters a dictionary — it belongs to whoever runs this
+    // instance and comes from their own config.
+    const vars = { version, year: new Date().getFullYear(), brand };
     const label = version ? t('app.footer.copyrightVersion', vars) : t('app.footer.copyright', vars);
     for (const el of document.querySelectorAll('.app-foot')) el.textContent = label;
 }

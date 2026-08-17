@@ -234,7 +234,7 @@ export default {
     "sys.member_removed_unknown": "{actor} removed a member",
 
     /* Static markup in index.html, applied by applyStatic() */
-    "ui.auth.tagline": "Private messenger by ConnectWell",
+    "ui.auth.tagline": "Private messenger",
     "ui.auth.login.password": "Password",
     "ui.auth.login.submit": "Sign in",
     "ui.auth.login.username": "Username",

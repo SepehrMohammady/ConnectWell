@@ -1,10 +1,28 @@
 {
   "name": "connectwell",
-  "version": "0.17.0",
+  "version": "0.18.0",
   "private": true,
-  "description": "ConnectWell — minimal private messenger with audio/video calls, by ConnectWell",
+  "description": "Self-hosted private messenger with file sharing and audio/video calls — one Node process, SQLite, no build step",
+  "keywords": [
+    "messenger",
+    "chat",
+    "self-hosted",
+    "webrtc",
+    "video-call",
+    "sqlite",
+    "express",
+    "pwa"
+  ],
   "author": "Sepehr Mohammady",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SepehrMohammady/ConnectWell.git"
+  },
+  "bugs": {
+    "url": "https://github.com/SepehrMohammady/ConnectWell/issues"
+  },
+  "homepage": "https://github.com/SepehrMohammady/ConnectWell#readme",
   "main": "server.js",
   "engines": {
     "node": ">=22.5"

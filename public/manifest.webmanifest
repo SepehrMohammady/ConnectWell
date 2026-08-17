@@ -1,7 +1,7 @@
 {
     "name": "ConnectWell",
     "short_name": "ConnectWell",
-    "description": "Private messenger by ConnectWell",
+    "description": "Private messenger with audio and video calls",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0e1013",
