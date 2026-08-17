@@ -36,7 +36,19 @@ const SERVER_FILES = ['lib/api.js'];
 // The "traces to the original English" check compares against the last commit
 // BEFORE the strings were extracted. HEAD is no longer usable for this: once the
 // extraction landed, the literals live in en.js rather than in the source.
-const BASELINE_REF = '26a6fb0';
+//
+// Pinned by subject rather than by SHA. A SHA does not survive a history
+// rewrite, and this check silently failed everything the first time the history
+// was rewritten. The subject is stable across rewrites and still unambiguous.
+const BASELINE_SUBJECT = 'Add shared-file retention, deletion switched off by default';
+const BASELINE_REF = (() => {
+    try {
+        const sha = cp.execSync(
+            `git log --format=%H --fixed-strings --grep="${BASELINE_SUBJECT}" -1`,
+            { encoding: 'utf8' }).trim();
+        return sha || null;
+    } catch { return null; }
+})();
 
 // Keys introduced after the baseline, which by definition have no earlier English
 // to trace to. Adding a key here is a deliberate act — it is the only way to
@@ -159,29 +171,42 @@ if (unused.length) bad(unused.length + ' key(s) defined but never referenced', u
 else ok('no unused keys');
 
 /* 2 — trace values to the original English, ignoring whitespace so a sentence
-   split across concatenated source lines still matches. */
+   split across concatenated source lines still matches.
+
+   This one needs git history, which not every checkout has: a source tarball has
+   no .git at all, and CI often clones with --depth 1. Those cases SKIP the check
+   rather than failing it — an unreadable baseline is not evidence of a bad
+   translation, and failing there would teach people to ignore the suite. */
 let original = '';
-for (const f of [...JS, ...SERVER_FILES, 'public/index.html']) {
-    try { original += cp.execSync('git show ' + BASELINE_REF + ':' + f, { encoding: 'utf8', maxBuffer: 1 << 24 }); } catch { }
+if (BASELINE_REF) {
+    for (const f of [...JS, ...SERVER_FILES, 'public/index.html']) {
+        try { original += cp.execSync('git show ' + BASELINE_REF + ':' + f, { encoding: 'utf8', maxBuffer: 1 << 24 }); } catch { }
+    }
 }
 const squash = (s) => s.replace(/\s+/g, '');
 const originalSquashed = squash(original);
+const canTrace = originalSquashed.length > 0;
 
 const untraced = [];
 let recombinedCount = 0;
 let newCount = 0;
-for (const [key, val] of Object.entries(dict)) {
-    if (key in RECOMBINED) { recombinedCount++; continue; }
-    if (key in NEW_SINCE_BASELINE) { newCount++; continue; }
-    const parts = val.split(/\{\w+\}/).map((s) => s.trim()).filter((s) => s.length >= 4);
-    if (!parts.length) continue;
-    if (!parts.every((p) => originalSquashed.includes(squash(p)))) {
-        untraced.push(key + ' = ' + JSON.stringify(val));
+if (!canTrace) {
+    console.log('  SKIP tracing values to the original English — no git history here'
+        + (BASELINE_REF ? '' : ' (baseline commit not found)'));
+} else {
+    for (const [key, val] of Object.entries(dict)) {
+        if (key in RECOMBINED) { recombinedCount++; continue; }
+        if (key in NEW_SINCE_BASELINE) { newCount++; continue; }
+        const parts = val.split(/\{\w+\}/).map((s) => s.trim()).filter((s) => s.length >= 4);
+        if (!parts.length) continue;
+        if (!parts.every((p) => originalSquashed.includes(squash(p)))) {
+            untraced.push(key + ' = ' + JSON.stringify(val));
+        }
     }
+    if (untraced.length) bad('every value traces to the original English', untraced.join('\n        '));
+    else ok('every checkable value traces to the English at ' + BASELINE_REF.slice(0, 7)
+        + ' (' + recombinedCount + ' recombinations, ' + newCount + ' new keys, both documented)');
 }
-if (untraced.length) bad('every value traces to the original English', untraced.join('\n        '));
-else ok('every checkable value traces to the English at ' + BASELINE_REF
-    + ' (' + recombinedCount + ' recombinations, ' + newCount + ' new keys, both documented)');
 
 /* 2b — every translated dictionary must match English key-for-key and
    slot-for-slot. A dropped slot renders a hole where a name should be. */
