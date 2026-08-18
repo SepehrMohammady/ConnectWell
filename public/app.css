@@ -87,7 +87,12 @@ img, video { max-width: 100%; }
    display:none, so exactly one ever shares the column with the bar. */
 body { height: 100dvh; display: flex; flex-direction: column; }
 .view { flex: 1 1 auto; min-height: 0; }
-.center-view { display: flex; align-items: center; justify-content: center; padding: 2rem; }
+/* The app view can no longer overflow, but a sign-in card can still be taller
+   than a short screen, so these keep their own way to scroll. */
+.center-view {
+    display: flex; align-items: center; justify-content: center;
+    padding: 2rem; overflow-y: auto;
+}
 
 /* ---------------- buttons ---------------- */
 
@@ -215,13 +220,24 @@ body { height: 100dvh; display: flex; flex-direction: column; }
 
 /* ---------------- layout ---------------- */
 
-#view-app { display: grid; grid-template-columns: 320px 1fr; }
+#view-app {
+    display: grid; grid-template-columns: 320px 1fr;
+    /* One row, exactly as tall as the view and allowed to shrink below its
+       content. Without a row track the single implicit row is auto-sized, so it
+       grows to fit the whole conversation and the WINDOW scrolls -- taking the
+       sidebar with it and carrying the composer off the bottom. Pinning the row
+       is what pushes the overflow down into the panes, where it belongs. */
+    grid-template-rows: minmax(0, 1fr);
+    overflow: hidden;
+}
 
 #sidebar {
     background: var(--panel);
     border-inline-end: 1px solid var(--border);
     display: flex; flex-direction: column;
-    min-width: 0;
+    /* min-height:0 for the same reason as the chat pane: the conversation list
+       inside is the scroller, so the column must be allowed to shrink. */
+    min-width: 0; min-height: 0;
 }
 
 .sb-head {
@@ -284,10 +300,12 @@ body { height: 100dvh; display: flex; flex-direction: column; }
 
 /* ---------------- chat pane ---------------- */
 
-/* 100% of its grid area rather than of the viewport: the area shrinks when the
-   connection bar is present, and a viewport-height pane would ignore that and
-   push the composer off the bottom of the screen. */
-#chatpane { display: flex; flex-direction: column; min-width: 0; height: 100%; }
+/* Sized by the grid row (stretch), never by the viewport and never by its own
+   content: the row shrinks when the connection bar appears, and min-height:0 is
+   what lets .chat-ui and .msg-scroll inside it shrink, so the messages scroll
+   under a composer that stays put. A percentage height here could not resolve
+   against an auto row, which is how the whole page came to scroll. */
+#chatpane { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .chat-empty { flex: 1; display: flex; align-items: center; justify-content: center; }
 .chat-empty-inner { text-align: center; color: var(--muted); }
 .chat-empty-inner .brand-mark { width: 64px; height: 64px; opacity: .4; margin: 0 auto 1rem; }
