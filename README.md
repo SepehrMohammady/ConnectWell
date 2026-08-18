@@ -65,6 +65,15 @@ person has read it. After that, deleting it needs their agreement.
 
 🌗 **Yours to arrange** — light theme, dark theme, or whatever your system says.
 
+## See it running
+
+There is a live demo at **<https://semo-lab.com/connectwell/demo/>** — sign in as
+`ada` with the password `demo12345` and there are messages, a group, replies,
+reactions and call history waiting.
+
+It is wiped and re-seeded every night, so treat it as a shop window rather than
+somewhere to keep anything.
+
 ## Try it in two minutes
 
 ```bash
