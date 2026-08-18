@@ -112,8 +112,12 @@ export async function openConv(convId) {
     // A half-written reply belongs to the thread it was started in.
     if (replyTo && replyTo.convId !== convId) clearReplyTo();
     // The previous conversation's unread line is spent; only the one being
-    // opened gets a fresh boundary computed below.
-    if (S.activeConvId && S.activeConvId !== convId) msgStore(S.activeConvId).unreadAt = 0;
+    // opened gets a fresh boundary computed below. Its reading position is
+    // worth keeping, though.
+    if (S.activeConvId && S.activeConvId !== convId) {
+        rememberScroll(S.activeConvId);
+        msgStore(S.activeConvId).unreadAt = 0;
+    }
     S.activeConvId = convId;
     clearTyping(); // typing state is per-open-conversation; drop stale indicators
     $('view-app').classList.add('mobile-chat-open');
@@ -144,12 +148,26 @@ export async function openConv(convId) {
     // Held on the store so paging and reconnect re-renders keep the line.
     msgStore(convId).unreadAt = unreadAt;
     renderAll(convId);
-    if (unreadAt) {
-        const sep = $('unread-sep');
-        // Land on the divider rather than the bottom, so the first thing on
-        // screen is the first thing not yet read.
-        if (sep) sep.scrollIntoView({ block: 'center' });
-        else scrollBottom();
+    // Three answers to "where should this open?", in order of what the reader
+    // most likely wants: the first thing they have not read, then wherever they
+    // had got to, then the end.
+    const sep = unreadAt ? $('unread-sep') : null;
+    if (sep) {
+        sep.scrollIntoView({ block: 'center' });
+    } else if (store.scrollTop != null) {
+        const sc = $('msg-scroll');
+        const want = Math.min(store.scrollTop, Math.max(0, sc.scrollHeight - sc.clientHeight));
+        sc.scrollTop = want;
+        // Same reason scrollBottom re-pins: media that has not loaded yet would
+        // otherwise shift everything under the restored offset.
+        const again = () => {
+            if (S.activeConvId === convId && sc.isConnected) {
+                sc.scrollTop = Math.min(store.scrollTop, Math.max(0, sc.scrollHeight - sc.clientHeight));
+            }
+        };
+        requestAnimationFrame(again);
+        setTimeout(again, 120);
+        setTimeout(again, 400);
     } else {
         scrollBottom();
     }
@@ -195,7 +213,10 @@ export async function jumpToMessage(convId, messageId) {
 export function closeConv() {
     closeFilter();
     clearReplyTo();
-    if (S.activeConvId) msgStore(S.activeConvId).unreadAt = 0;
+    if (S.activeConvId) {
+        rememberScroll(S.activeConvId);
+        msgStore(S.activeConvId).unreadAt = 0;
+    }
     S.activeConvId = null;
     clearTyping();
     $('view-app').classList.remove('mobile-chat-open');
@@ -1027,9 +1048,16 @@ export async function reconcileActive() {
         }
     } catch { return; }
     if (added && S.activeConvId === convId) {
+        // Catching up must not move the reader. On a connection that drops
+        // often this runs constantly, and jumping to the end each time would
+        // yank someone out of the history they were reading.
+        const sc = $('msg-scroll');
+        const atBottom = sc.scrollHeight - sc.scrollTop - sc.clientHeight < 120;
+        const keep = sc.scrollTop;
         store.list.sort((a, b) => a.id - b.id);
         renderAll(convId);
-        scrollBottom();
+        if (atBottom) scrollBottom();
+        else sc.scrollTop = Math.min(keep, Math.max(0, sc.scrollHeight - sc.clientHeight));
         markRead(convId);
     }
 }
@@ -1060,9 +1088,30 @@ function renderTyping() {
 
 /* ---------------- scrolling / pagination ---------------- */
 
+// Pinned again after a beat: images, video posters and voice waveforms have no
+// height until they load, so a single assignment lands "at the bottom" of a
+// thread that then grows underneath and leaves the reader stranded mid-history.
 function scrollBottom() {
     const sc = $('msg-scroll');
     sc.scrollTop = sc.scrollHeight;
+    const again = () => { if (sc.isConnected) sc.scrollTop = sc.scrollHeight; };
+    requestAnimationFrame(again);
+    setTimeout(again, 120);
+    setTimeout(again, 400);
+}
+
+/* Where the reader had got to in a conversation, so leaving and coming back
+   returns them there rather than to the end. Kept on the message store, so it
+   dies with the cached thread and never outlives what it describes.
+   null means "was at the bottom" — which must stay the bottom even when
+   messages have arrived since. */
+function rememberScroll(convId) {
+    if (!convId) return;
+    const sc = $('msg-scroll');
+    const store = S.msgs.get(convId);
+    if (!sc || !store || !sc.isConnected) return;
+    const atBottom = sc.scrollHeight - sc.scrollTop - sc.clientHeight < 120;
+    store.scrollTop = atBottom ? null : sc.scrollTop;
 }
 
 async function maybeLoadOlder() {
