@@ -362,12 +362,19 @@ body { height: 100dvh; display: flex; flex-direction: column; }
     background: var(--panel-2);
     border-radius: 16px; border-end-start-radius: 6px;
     padding: .5rem .8rem;
-    min-width: 0;
+    /* Never wider than the row that holds it, whatever it happens to contain. */
+    min-width: 0; max-width: 100%;
     position: relative;
     word-wrap: break-word; overflow-wrap: anywhere; white-space: pre-wrap;
 }
 .msg-row.mine .bubble { background: var(--mine); border-radius: 16px; border-end-end-radius: 6px; }
-.bubble .sender { font-size: .76rem; font-weight: 700; color: var(--accent); margin-bottom: .15rem; white-space: nowrap; }
+/* Clamped the same way as a reply quote, and for the same reason: a long display
+   name that cannot wrap would set the bubble's minimum width. */
+.bubble .sender {
+    font-size: .76rem; font-weight: 700; color: var(--accent); margin-bottom: .15rem;
+    display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical;
+    overflow: hidden; overflow-wrap: anywhere;
+}
 .bubble a { color: var(--accent); }
 .bubble .meta {
     display: block; text-align: end; unicode-bidi: isolate;
@@ -886,15 +893,26 @@ body { height: 100dvh; display: flex; flex-direction: column; }
     border-inline-start: 3px solid var(--accent);
     padding-inline-start: .6rem;
 }
-.reply-who { font-size: .78rem; font-weight: 700; color: var(--accent); }
+.reply-who {
+    font-size: .78rem; font-weight: 700; color: var(--accent);
+    overflow: hidden; overflow-wrap: anywhere;
+}
+/* Clamped to one line by WRAPPING and hiding the rest, never by white-space:
+   nowrap. Text that cannot wrap has a min-content width of the entire line, and
+   a bubble is sized by its contents — so one long quote grew the message wider
+   than the screen and pushed it out of the frame. Wrapping keeps min-content
+   down to the longest word, so the quote fits whatever width the message takes
+   rather than dictating it. */
 .reply-text {
     font-size: .82rem; color: var(--muted);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical;
+    overflow: hidden; overflow-wrap: anywhere;
 }
 /* The quote inside a sent message. text-align:start rather than left so it
    follows the bubble's own direction under RTL. */
 .reply-quote {
-    display: block; width: 100%; text-align: start;
+    display: block; width: 100%; max-width: 100%; overflow: hidden;
+    text-align: start;
     margin-bottom: .35rem; padding: .3rem .5rem;
     border-inline-start: 3px solid var(--accent);
     border-radius: 6px; background: var(--chip-bg);
