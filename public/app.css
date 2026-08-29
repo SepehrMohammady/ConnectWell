@@ -659,12 +659,24 @@ body { height: 100dvh; display: flex; flex-direction: column; }
 .user-row {
     display: flex; align-items: center; gap: .7rem; width: 100%;
     padding: .5rem .4rem; border-radius: 10px; text-align: start;
+    /* An admin row can carry three buttons. Rather than crushing the name to a
+       few pixels to make room, the buttons drop to a line of their own. */
+    flex-wrap: wrap; row-gap: .5rem;
 }
 @media (hover: hover) { button.user-row:hover { background: var(--panel-2); } }
-.user-row .u-mid { flex: 1; min-width: 0; }
-.user-row .u-name { font-weight: 600; }
-.user-row .u-sub { color: var(--muted); font-size: .8rem; }
-.user-row .u-actions { display: flex; gap: .4rem; }
+/* The basis is what forces that wrap: the name keeps at least this much before
+   the buttons are pushed down, instead of shrinking away to nothing. */
+.user-row .u-mid { flex: 1 1 8rem; min-width: 0; }
+/* Long names clip rather than wrap, so a row stays one identity tall. */
+.user-row .u-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-row .u-sub {
+    color: var(--muted); font-size: .8rem;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.user-row .u-actions {
+    display: flex; gap: .4rem; flex: none; flex-wrap: wrap;
+    margin-inline-start: auto;      /* stays with the trailing edge on both lines */
+}
 .user-row input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); }
 
 /* ---------------- profile / form fields ---------------- */
