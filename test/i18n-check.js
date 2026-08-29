@@ -54,6 +54,18 @@ const BASELINE_REF = (() => {
 // to trace to. Adding a key here is a deliberate act — it is the only way to
 // bypass the check, so keep the reason honest.
 const NEW_SINCE_BASELINE = {
+    'app.admin.promote': 'admin password reset and role change (0.21.0)',
+    'app.admin.demote': 'admin password reset and role change (0.21.0)',
+    'app.admin.promoteConfirm': 'admin password reset and role change (0.21.0)',
+    'app.admin.demoteConfirm': 'admin password reset and role change (0.21.0)',
+    'app.admin.setPassword': 'admin password reset and role change (0.21.0)',
+    'app.admin.setPasswordTitle': 'admin password reset and role change (0.21.0)',
+    'app.admin.setPasswordHint': 'admin password reset and role change (0.21.0)',
+    'app.admin.newPassword': 'admin password reset and role change (0.21.0)',
+    'app.admin.suggest': 'admin password reset and role change (0.21.0)',
+    'app.admin.setPasswordSave': 'admin password reset and role change (0.21.0)',
+    'app.admin.passwordSet': 'admin password reset and role change (0.21.0)',
+    'app.admin.passwordTooShort': 'admin password reset and role change (0.21.0)',
     'app.close': 'close control on modals (0.19.0)',
     'app.convInfo.addMemberTitle': 'add-member picker (0.19.0)',
     'app.convInfo.noneToAdd': 'add-member picker (0.19.0)',

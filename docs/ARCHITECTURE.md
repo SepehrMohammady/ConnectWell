@@ -52,7 +52,8 @@ Everything lives under `api/`:
 `conversations` (+ `/:id/messages`, `/read`, `/members`, `/upload`),
 `files/:id`, `messages/:id` (DELETE, PATCH, `/react`, `/forward`,
 `/delete-request`), `activity` (+ `/seen`), `ice`,
-`admin/users` (+ approve/block/unblock/delete), `admin/storage`, `health`.
+`admin/users` (+ approve/block/unblock/delete, `/password`, `/role`),
+`admin/storage`, `health`.
 
 State-changing requests must carry `X-Requested-With: ConnectWell`, a header a
 cross-origin form post cannot set — CSRF defence in depth on top of `SameSite`
@@ -79,6 +80,19 @@ so one person joining from two devices works correctly. `call:state` carries the
 call's shared efficiency verdict along with who asked for it.
 
 ## Design decisions worth knowing
+
+**An admin can set a member's password but never another admin's.** There is no
+email on the server and so no self-service reset, which makes an admin the only
+way back in for somebody who has forgotten theirs. Rewriting a peer admin's
+credential would be a silent account takeover, so that is refused — demote them
+first, which is deliberate and visible. A reset revokes every session the
+account had, since the usual reason for one is that the old password is
+compromised or unknown.
+
+**The last active admin cannot be demoted, and nobody can change their own
+role.** An instance with no admin cannot approve anyone or recover itself
+without direct database access. Handing over means promoting someone and letting
+them demote you.
 
 **Read receipts use a sticky column on the message**, not the participant's read
 watermark. Leaving and rejoining a group resets that watermark to zero, which

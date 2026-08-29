@@ -65,6 +65,10 @@ person has read it. After that, deleting it needs their agreement.
 
 🌗 **Yours to arrange** — light theme, dark theme, or whatever your system says.
 
+🛡️ **You hold the keys** — approve, block or remove members; set a password for
+whoever has forgotten theirs, since there is no email here to reset it with; and
+share the admin role when you would rather not be the only one holding it.
+
 ## See it running
 
 There is a live demo at **<https://semo-lab.com/connectwell/demo/>** — sign in as

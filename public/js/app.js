@@ -1198,6 +1198,53 @@ const ADMIN_TAB_KEY = {
     blocked: 'app.admin.tab.blocked',
 };
 
+// Setting somebody else's password. It is shown once, here, because the server
+// stores only a hash and nobody can look it up afterwards — so the admin has to
+// be able to read it off the screen to pass it on.
+function setPasswordModal(user) {
+    openModal((modal, close) => {
+        modal.append(h('h3', { text: t('app.admin.setPasswordTitle', { name: user.displayName }) }));
+        modal.append(h('p', { class: 'field-hint', text: t('app.admin.setPasswordHint') }));
+        const input = h('input', {
+            type: 'text', autocomplete: 'off', spellcheck: 'false',
+            placeholder: t('app.admin.newPassword'),
+        });
+        modal.append(input);
+        const row = h('div', { class: 'modal-row' });
+        row.append(h('div', { class: 'rec-spacer' }));
+        row.append(h('button', {
+            class: 'btn small ghost', type: 'button', text: t('app.admin.suggest'),
+            // Readable rather than maximally random: it is going to be typed in
+            // by hand, or read down a phone line, before it is changed again.
+            onclick: () => {
+                const words = 'amber-brisk-cedar-delta-ember-flint-grove-larch-maple-onyx-quartz-slate'.split('-');
+                const pick = () => words[Math.floor(Math.random() * words.length)];
+                input.value = `${pick()}-${pick()}-${Math.floor(Math.random() * 900 + 100)}`;
+                input.focus();
+                input.select();
+            },
+        }));
+        row.append(h('button', {
+            class: 'btn small', type: 'button', text: t('app.admin.setPasswordSave'),
+            onclick: async () => {
+                const password = input.value;
+                if (!password || password.length < 8) return toast(t('app.admin.passwordTooShort'));
+                try {
+                    await api(`api/admin/users/${user.id}/password`, {
+                        method: 'POST', body: { password },
+                    });
+                    // Named in the toast because the admin still has to relay it,
+                    // and the modal is about to close.
+                    toast(t('app.admin.passwordSet', { name: user.displayName }), 8000);
+                    close();
+                } catch (e) { toast(e.message); }
+            },
+        }));
+        modal.append(row);
+        input.focus();
+    });
+}
+
 async function adminModal() {
     S.pendingCount = 0;
     renderAdminBadge();
@@ -1254,6 +1301,36 @@ async function adminModal() {
                     h('div', { class: 'u-sub', text: '@' + u.username }),
                 ]));
                 const actions = h('div', { class: 'u-actions' });
+                // Role and password act on a person rather than on their approval
+                // state, so they sit outside the status branches below. Never on
+                // your own row: the server refuses both, and offering a control
+                // that always fails is worse than not offering it.
+                if (u.status === 'active' && u.id !== S.me.id) {
+                    actions.append(h('button', {
+                        class: 'btn small ghost', type: 'button',
+                        text: t(u.role === 'admin' ? 'app.admin.demote' : 'app.admin.promote'),
+                        onclick: async () => {
+                            const nextRole = u.role === 'admin' ? 'member' : 'admin';
+                            if (!confirm(t(nextRole === 'admin'
+                                ? 'app.admin.promoteConfirm' : 'app.admin.demoteConfirm',
+                            { name: u.displayName }))) return;
+                            try {
+                                await api(`api/admin/users/${u.id}/role`, {
+                                    method: 'POST', body: { role: nextRole },
+                                });
+                                await refresh();
+                            } catch (e) { toast(e.message); }
+                        },
+                    }));
+                }
+                // Only for members: the server refuses to rewrite another admin's
+                // credential, so demoting them first is the honest route.
+                if (u.role !== 'admin' && u.status !== 'deleted' && u.id !== S.me.id) {
+                    actions.append(h('button', {
+                        class: 'btn small ghost', type: 'button', text: t('app.admin.setPassword'),
+                        onclick: () => setPasswordModal(u),
+                    }));
+                }
                 if (u.role !== 'admin') {
                     if (u.status === 'pending') {
                         actions.append(h('button', { class: 'btn small', type: 'button', text: t('app.admin.approve'), onclick: act({ url: `api/admin/users/${u.id}/approve` }) }));
