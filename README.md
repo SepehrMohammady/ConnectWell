@@ -63,7 +63,8 @@ your messages, and each one takes you straight to the message it is about.
 🙈 **Second thoughts allowed** — edit or delete a message freely until the other
 person has read it. After that, deleting it needs their agreement.
 
-🌗 **Yours to arrange** — light theme, dark theme, or whatever your system says.
+🌗 **Yours to arrange** — light theme, dark theme, or whatever your system says,
+and a choice of conversation backdrops drawn entirely in CSS.
 
 🛡️ **You hold the keys** — approve, block or remove members; set a password for
 whoever has forgotten theirs, since there is no email here to reset it with; and

@@ -21,6 +21,7 @@ lib/db.js          schema, migrations, queries, JSON shapes
 lib/api.js         REST API
 lib/files.js       upload and download streaming (HTTP Range)
 lib/storage.js     shared-file retention sweep
+lib/stats.js       what the admin monitoring panel reports
 lib/deletions.js   delete-with-consent state machine
 lib/ws.js          realtime hub and call signaling
 lib/util.js        hashing, validation, small helpers
@@ -53,7 +54,7 @@ Everything lives under `api/`:
 `files/:id`, `messages/:id` (DELETE, PATCH, `/react`, `/forward`,
 `/delete-request`), `activity` (+ `/seen`), `ice`,
 `admin/users` (+ approve/block/unblock/delete, `/password`, `/role`),
-`admin/storage`, `health`.
+`admin/storage`, `admin/stats`, `health`.
 
 State-changing requests must carry `X-Requested-With: ConnectWell`, a header a
 cross-origin form post cannot set — CSRF defence in depth on top of `SameSite`

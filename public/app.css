@@ -32,6 +32,8 @@
     --chip-gone-line: rgba(255, 255, 255, .22);
     --accent-tint: rgba(41, 200, 232, .10);
     --danger-tint: rgba(248, 113, 113, .12);
+    /* the line/dot colour of a tiled backdrop, so one pattern serves both themes */
+    --tile-ink: rgba(255, 255, 255, .05);
     /* light-coloured mark, for dark backgrounds */
     --brand-mark: url('logo-mark.png');
 }
@@ -59,6 +61,7 @@
     --chip-gone-line: rgba(0, 0, 0, .20);
     --accent-tint: rgba(11, 124, 153, .10);
     --danger-tint: rgba(217, 45, 45, .10);
+    --tile-ink: rgba(0, 0, 0, .06);
     /* charcoal mark (the real brand colour), for light backgrounds */
     --brand-mark: url('logo-mark-dark.png');
 }
@@ -937,3 +940,81 @@ body { height: 100dvh; display: flex; flex-direction: column; }
 /* Message text carries its own direction via dir="auto", so it must be a block
    for that direction to govern its own line breaks rather than the bubble's. */
 .msg-text { display: block; }
+
+/* ---------------- conversation backdrop ----------------
+   Chosen per device in the profile. Every option is a translucent layer over
+   var(--bg), so one definition serves both palettes: on the dark theme the
+   white washes lift it, on the light theme the black ones settle it.
+
+   The patterns are repeating gradients rather than images. They tile seamlessly
+   because they are generated, cost nothing to download, and stay sharp at any
+   zoom — and nothing is fetched from anywhere, which is the promise the rest of
+   the app makes too. `--tile` is the repeat size; changing it rescales a
+   pattern without touching its geometry. */
+.msg-scroll, .swatch { --tile: 22px; background-color: var(--bg); }
+
+/* Tints. color-mix keeps the hue subordinate to the theme's own background, so
+   a colour that reads as a wash in the dark never becomes a slab in the light. */
+[data-chat-bg='slate']  .msg-scroll, .swatch[data-bg='slate']  { background-color: color-mix(in srgb, var(--bg) 88%, #64748b); }
+[data-chat-bg='ocean']  .msg-scroll, .swatch[data-bg='ocean']  { background-color: color-mix(in srgb, var(--bg) 88%, #0ea5e9); }
+[data-chat-bg='forest'] .msg-scroll, .swatch[data-bg='forest'] { background-color: color-mix(in srgb, var(--bg) 88%, #10b981); }
+[data-chat-bg='sand']   .msg-scroll, .swatch[data-bg='sand']   { background-color: color-mix(in srgb, var(--bg) 88%, #f59e0b); }
+
+/* Tiles. Each is one repeating unit, so the seam is arithmetic rather than
+   luck — no edge to line up and nothing to load. */
+[data-chat-bg='dots'] .msg-scroll, .swatch[data-bg='dots'] {
+    background-image: radial-gradient(var(--tile-ink) 1.4px, transparent 1.4px);
+    background-size: var(--tile) var(--tile);
+}
+[data-chat-bg='grid'] .msg-scroll, .swatch[data-bg='grid'] {
+    background-image:
+        linear-gradient(to right, var(--tile-ink) 1px, transparent 1px),
+        linear-gradient(to bottom, var(--tile-ink) 1px, transparent 1px);
+    background-size: var(--tile) var(--tile);
+}
+[data-chat-bg='weave'] .msg-scroll, .swatch[data-bg='weave'] {
+    background-image:
+        repeating-linear-gradient(45deg, var(--tile-ink) 0 1px, transparent 1px 50%),
+        repeating-linear-gradient(-45deg, var(--tile-ink) 0 1px, transparent 1px 50%);
+    background-size: var(--tile) var(--tile);
+}
+[data-chat-bg='stripe'] .msg-scroll, .swatch[data-bg='stripe'] {
+    background-image: repeating-linear-gradient(
+        45deg, var(--tile-ink) 0 1px, transparent 1px calc(var(--tile) / 2));
+}
+
+/* ---------------- the picker ---------------- */
+
+.bg-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: .5rem; }
+.swatch {
+    aspect-ratio: 1; border-radius: 10px;
+    border: 2px solid var(--border);
+    position: relative;
+}
+.swatch.active { border-color: var(--accent); }
+.swatch.active::after {
+    content: '✓';
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--accent); font-weight: 700; font-size: .9rem;
+}
+@media (hover: hover) { .swatch:hover { border-color: var(--accent-deep); } }
+
+/* ---------------- admin: server panel ---------------- */
+.stat-head {
+    font-size: .78rem; font-weight: 700; letter-spacing: .04em;
+    color: var(--accent); margin: .9rem .2rem .35rem;
+}
+.stat-head:first-child { margin-top: .2rem; }
+/* Label and value as two columns, so the numbers line up down the panel and can
+   be compared at a glance rather than read one row at a time. */
+.stat-grid {
+    display: grid; grid-template-columns: 1fr auto;
+    gap: .25rem .8rem; align-items: baseline;
+    padding: .1rem .2rem;
+}
+.stat-k { color: var(--muted); font-size: .85rem; }
+.stat-v { font-weight: 600; font-size: .88rem; text-align: end; font-variant-numeric: tabular-nums; }
+/* Not an error — something to look at: disk running out, accounts waiting,
+   deletion actually armed. */
+.stat-v.warn { color: var(--danger); }

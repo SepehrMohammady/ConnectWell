@@ -4,7 +4,7 @@ import { api, postBytes } from './api.js';
 import { makeAvatar } from './avatar.js';
 import {
     S, $, h, bus, net, toast, popSound, avatarEl, userName, convTitle, convOther,
-    fmtListTime, userAvatar, convAvatarSrc, closeControl,
+    fmtListTime, fmtSize, userAvatar, convAvatarSrc, closeControl,
 } from './core.js';
 import {
     initChat, openConv, closeConv, renderHeader, onMsgNew, onMsgDeleted, onTyping, markRead, reconcileActive,
@@ -16,6 +16,16 @@ import {
 } from './calls.js';
 import { t, applyStatic } from './i18n.js';
 import { ecoOn, setEco } from './eco.js';
+import { BACKGROUNDS, chatBg, setChatBg } from './bg.js';
+
+// A table of literal keys rather than 'app.bg.' + name: the i18n check scans the
+// source for string literals, and a key assembled at runtime is invisible to it.
+// Same reason THEME_TITLE_KEY below is written out in full.
+const BG_LABEL_KEY = {
+    plain: 'app.bg.plain', slate: 'app.bg.slate', ocean: 'app.bg.ocean',
+    forest: 'app.bg.forest', sand: 'app.bg.sand', dots: 'app.bg.dots',
+    grid: 'app.bg.grid', weave: 'app.bg.weave', stripe: 'app.bg.stripe',
+};
 
 let ws = null;
 let wsBackoff = 1000;
@@ -1145,6 +1155,25 @@ function profileModal() {
         paintSeg();
         modal.append(seg);
 
+        /* conversation backdrop */
+        modal.append(h('label', { class: 'field-label', text: t('app.profile.background') }));
+        const bgGrid = h('div', { class: 'bg-grid' });
+        const paintBg = () => {
+            bgGrid.textContent = '';
+            for (const name of BACKGROUNDS) {
+                // Each swatch paints itself with the very rule it selects, so the
+                // preview cannot drift from the result.
+                bgGrid.append(h('button', {
+                    class: 'swatch' + (chatBg() === name ? ' active' : ''),
+                    type: 'button', dataset: { bg: name },
+                    title: t(BG_LABEL_KEY[name]), 'aria-label': t(BG_LABEL_KEY[name]),
+                    onclick: () => { setChatBg(name); paintBg(); },
+                }));
+            }
+        };
+        paintBg();
+        modal.append(bgGrid);
+
         /* language */
         modal.append(h('label', { class: 'field-label', text: t('app.profile.language') }));
         modal.append(languageSeg(say));
@@ -1245,6 +1274,103 @@ function setPasswordModal(user) {
     });
 }
 
+// The instance at a glance: what it is using, what is left, and how much is
+// going on inside it. Read-only — the one control is the retention sweep, which
+// already refuses to delete anything unless PURGE_ENABLED is set.
+function renderServer(list, stats) {
+    if (!stats) {
+        list.append(h('p', { class: 'muted', text: t('app.admin.loading') }));
+        return;
+    }
+    const { server, storage, people, activity, retention } = stats;
+
+    const section = (title, rows) => {
+        list.append(h('div', { class: 'stat-head', text: title }));
+        const box = h('div', { class: 'stat-grid' });
+        for (const [label, value, tone] of rows) {
+            if (value === null || value === undefined) continue;
+            box.append(h('div', { class: 'stat-k', text: label }));
+            box.append(h('div', { class: 'stat-v' + (tone ? ' ' + tone : ''), text: String(value) }));
+        }
+        list.append(box);
+    };
+
+    // Disk is the headline: it is the thing that actually runs out.
+    const disk = storage.disk;
+    section(t('app.admin.statStorage'), [
+        [t('app.admin.statTotal'), fmtSize(storage.totalBytes)],
+        [t('app.admin.statUploads'), `${fmtSize(storage.uploads.bytes)} · ${storage.uploads.files}`],
+        [t('app.admin.statAvatars'), `${fmtSize(storage.avatars.bytes)} · ${storage.avatars.files}`],
+        [t('app.admin.statDatabase'), fmtSize(storage.database.bytes)],
+        disk ? [t('app.admin.statDiskFree'), `${fmtSize(disk.free)} / ${fmtSize(disk.total)}`,
+            disk.free < disk.total * 0.1 ? 'warn' : ''] : null,
+    ].filter(Boolean));
+
+    section(t('app.admin.statPeople'), [
+        [t('app.admin.statActive'), people.active],
+        [t('app.admin.statAdmins'), people.admins],
+        [t('app.admin.statPending'), people.pending, people.pending ? 'warn' : ''],
+        [t('app.admin.statBlocked'), people.blocked],
+        [t('app.admin.statOnline'), people.onlineNow],
+    ]);
+
+    section(t('app.admin.statActivity'), [
+        [t('app.admin.statConversations'), `${activity.direct} + ${activity.groups}`],
+        [t('app.admin.statMessages'), activity.messages],
+        [t('app.admin.statToday'), activity.messagesDay],
+        [t('app.admin.statWeek'), activity.messagesWeek],
+        [t('app.admin.statFiles'), activity.files],
+        [t('app.admin.statCalls'), `${activity.calls} · ${activity.missedCalls}`],
+    ]);
+
+    section(t('app.admin.statServer'), [
+        [t('app.admin.statVersion'), server.version],
+        [t('app.admin.statUptime'), fmtUptime(server.uptimeSec)],
+        [t('app.admin.statMemory'), fmtSize(server.memoryBytes)],
+        [t('app.admin.statNode'), server.node],
+    ]);
+
+    // Whether anything is actually being deleted is the line that matters most,
+    // so it is stated rather than left to be inferred from the numbers above.
+    section(t('app.admin.statRetention'), [
+        [t('app.admin.statPurge'),
+            t(retention.purgeEnabled ? 'app.admin.purgeOn' : 'app.admin.purgeOff'),
+            retention.purgeEnabled ? 'warn' : ''],
+        [t('app.admin.statAge'), retention.retentionDays
+            ? t('app.admin.days', { n: retention.retentionDays }) : t('app.admin.purgeOff')],
+        [t('app.admin.statThresholds'), `${fmtSize(retention.lowBytes)} / ${fmtSize(retention.highBytes)}`],
+    ]);
+
+    const row = h('div', { class: 'modal-row' });
+    row.append(h('div', { class: 'rec-spacer' }));
+    row.append(h('button', {
+        class: 'btn small ghost', type: 'button', text: t('app.admin.sweep'),
+        onclick: async (e) => {
+            const btn = e.currentTarget;
+            btn.disabled = true;
+            try {
+                const r = await api('api/admin/storage/sweep', { method: 'POST' });
+                // A dry run reports what it WOULD remove; a real one what it did.
+                // Saying "removed 12" after a dry run would be a lie about data.
+                toast(r.mode === 'purge'
+                    ? t('app.admin.sweepDone', { n: r.purged, size: fmtSize(r.freed) })
+                    : t('app.admin.sweepDry', { n: r.selected }), 8000);
+            } catch (err) { toast(err.message); }
+            btn.disabled = false;
+        },
+    }));
+    list.append(row);
+}
+
+// Whole units only: an admin glancing at uptime wants "3 days", not a duration
+// to the second.
+function fmtUptime(sec) {
+    if (sec < 60) return t('app.admin.seconds', { n: sec });
+    if (sec < 3600) return t('app.admin.minutes', { n: Math.floor(sec / 60) });
+    if (sec < 86400) return t('app.admin.hours', { n: Math.floor(sec / 3600) });
+    return t('app.admin.days', { n: Math.floor(sec / 86400) });
+}
+
 async function adminModal() {
     S.pendingCount = 0;
     renderAdminBadge();
@@ -1258,6 +1384,7 @@ async function adminModal() {
         const list = h('div', { class: 'list' });
         modal.append(tabs, list);
         let tab = 'pending';
+        let stats = null;
 
         const refresh = async () => {
             try { users = (await api('api/admin/users')).users; render(); }
@@ -1276,7 +1403,21 @@ async function adminModal() {
             // `status`, not `t`: the loop variable this used to have shadowed the
             // imported translator for the whole body. The status values themselves
             // stay untranslated — they are the server's identifiers.
-            for (const status of ['pending', 'active', 'blocked']) {
+            for (const status of ['pending', 'active', 'blocked', 'server']) {
+                if (status === 'server') {
+                    tabs.append(h('button', {
+                        class: 'admin-tab' + (tab === 'server' ? ' active' : ''), type: 'button',
+                        text: t('app.admin.tab.server'),
+                        onclick: async () => {
+                            tab = 'server';
+                            render();
+                            try { stats = await api('api/admin/stats'); }
+                            catch (e) { toast(e.message); }
+                            if (tab === 'server') render();
+                        },
+                    }));
+                    continue;
+                }
                 const label = t(ADMIN_TAB_KEY[status]);
                 tabs.append(h('button', {
                     class: 'admin-tab' + (tab === status ? ' active' : ''), type: 'button',
@@ -1285,6 +1426,7 @@ async function adminModal() {
                 }));
             }
             list.textContent = '';
+            if (tab === 'server') { renderServer(list, stats); return; }
             const rows = users.filter((u) => u.status === tab);
             if (rows.length === 0) list.append(h('p', { class: 'muted', text: t('app.admin.empty') }));
             for (const u of rows) {
@@ -1337,6 +1479,19 @@ async function adminModal() {
                         actions.append(h('button', { class: 'btn small ghost', type: 'button', text: t('app.admin.block'), onclick: act({ url: `api/admin/users/${u.id}/block` }) }));
                     } else if (u.status === 'active') {
                         actions.append(h('button', { class: 'btn small ghost', type: 'button', text: t('app.admin.block'), onclick: act({ url: `api/admin/users/${u.id}/block` }) }));
+                        actions.append(h('button', {
+                            class: 'btn small danger', type: 'button', text: t('app.admin.delete'),
+                            // Removing somebody who is using the account is not the
+                            // same as tidying away one already blocked, so it says
+                            // what it will actually do before doing it.
+                            onclick: async () => {
+                                if (!confirm(t('app.admin.deleteConfirm', { name: u.displayName }))) return;
+                                try {
+                                    await api(`api/admin/users/${u.id}`, { method: 'DELETE' });
+                                    await refresh();
+                                } catch (e) { toast(e.message); }
+                            },
+                        }));
                     } else if (u.status === 'blocked') {
                         actions.append(h('button', { class: 'btn small', type: 'button', text: t('app.admin.unblock'), onclick: act({ url: `api/admin/users/${u.id}/unblock` }) }));
                         actions.append(h('button', { class: 'btn small danger', type: 'button', text: t('app.admin.delete'), onclick: act({ url: `api/admin/users/${u.id}`, method: 'DELETE' }) }));
