@@ -31,6 +31,9 @@ laptop in a cupboard, and it works in any modern browser on Android, iOS,
 Windows, Linux and macOS — including as an installable app.
 
 Everyone who joins needs your approval first, so the door stays shut by default.
+And there is no member list to browse once inside: people are found by searching
+for a name you already know, so being on the same instance as somebody is not
+enough to learn that they are there.
 
 ## What can it do?
 

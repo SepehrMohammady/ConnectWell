@@ -1018,3 +1018,17 @@ body { height: 100dvh; display: flex; flex-direction: column; }
 /* Not an error — something to look at: disk running out, accounts waiting,
    deletion actually armed. */
 .stat-v.warn { color: var(--danger); }
+
+/* ---------------- people search ---------------- */
+/* Who has been picked so far in a new group. They sit above the results because
+   the search that found them will be typed over, and a selection you cannot see
+   is one you cannot undo. */
+.chosen { display: flex; flex-wrap: wrap; gap: .35rem; margin: .5rem 0 .2rem; }
+.chip {
+    display: inline-flex; align-items: center; gap: .35rem;
+    padding: .2rem .5rem .2rem .7rem;
+    border-radius: 999px; background: var(--panel-3);
+    font-size: .82rem;
+}
+.chip-x { color: var(--muted); font-size: .75rem; }
+@media (hover: hover) { .chip:hover .chip-x { color: var(--danger); } }

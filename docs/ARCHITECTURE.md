@@ -53,7 +53,7 @@ Everything lives under `api/`:
 `conversations` (+ `/:id/messages`, `/read`, `/members`, `/upload`),
 `files/:id`, `messages/:id` (DELETE, PATCH, `/react`, `/forward`,
 `/delete-request`), `activity` (+ `/seen`), `ice`,
-`admin/users` (+ approve/block/unblock/delete, `/password`, `/role`),
+`users/search`, `admin/users` (+ approve/block/unblock/delete, `/password`, `/role`),
 `admin/storage`, `admin/stats`, `health`.
 
 State-changing requests must carry `X-Requested-With: ConnectWell`, a header a
@@ -81,6 +81,20 @@ so one person joining from two devices works correctly. `call:state` carries the
 call's shared efficiency verdict along with who asked for it.
 
 ## Design decisions worth knowing
+
+**An instance is not a directory.** A client is only ever handed the people it
+already shares a conversation with, and presence and profile changes are sent to
+that same audience rather than broadcast to everyone. Reaching a stranger means
+searching `users/search` for at least three letters of their name — enough to
+find somebody you know of, not enough to enumerate the membership. The search
+escapes `%` and `_` before they reach LIKE, or the minimum length would buy
+nothing. The admin panel keeps its own unscoped list, because approving and
+blocking require it.
+
+Because the roster follows from conversations, a client that meets somebody new
+— found by search, or added to a group by another member — refetches
+`api/users` when an unfamiliar member id appears, rather than being told about
+people it has no business knowing.
 
 **An admin can set a member's password but never another admin's.** There is no
 email on the server and so no self-service reset, which makes an admin the only

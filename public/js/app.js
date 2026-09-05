@@ -508,6 +508,7 @@ const EVENTS = {
     'conv:new'(d) {
         S.convs.set(d.conversation.id, d.conversation);
         renderConvList();
+        learnMembers(d.conversation);
     },
     'conv:updated'(d) {
         const conv = S.convs.get(d.conversation.id);
@@ -520,6 +521,7 @@ const EVENTS = {
             return had ? { ...r, lastReadId: Math.max(had.lastReadId, r.lastReadId) } : r;
         });
         S.convs.set(d.conversation.id, { ...d.conversation, unread, reads });
+        learnMembers(d.conversation);
         renderConvList();
         if (S.activeConvId === d.conversation.id) renderHeader();
     },
@@ -735,30 +737,90 @@ function addMemberModal(conv) {
         const search = h('input', { type: 'search', placeholder: t('app.newChat.searchPlaceholder') });
         const list = h('div', { class: 'list' });
         modal.append(search, list);
-        const render = () => {
-            list.textContent = '';
-            const q = search.value.trim().toLowerCase();
-            const addable = [...S.users.values()]
-                .filter((u) => !conv.members.includes(u.id))
-                .filter((u) => !q || u.displayName.toLowerCase().includes(q) || u.username.toLowerCase().includes(q));
-            if (!addable.length) {
-                list.append(h('p', { class: 'field-hint', text: t('app.convInfo.noneToAdd') }));
-                return;
-            }
+        const render = (users, q) => {
+            // Members of this group are filtered out here rather than by the
+            // server: the search does not know which conversation it is for.
+            const addable = users === null ? null : users.filter((u) => !conv.members.includes(u.id));
+            if (searchHint(list, addable, q)) return;
             for (const u of addable) {
                 list.append(userRowBtn(u, async () => {
                     try {
                         await api('api/conversations/' + conv.id + '/members', {
                             method: 'POST', body: { userId: u.id },
                         });
+                        S.users.set(u.id, u);
                         close();
                     } catch (e) { toast(e.message); }
                 }));
             }
         };
-        search.addEventListener('input', render);
-        render();
+        attachUserSearch(search, list, render);
+        search.focus();
     });
+}
+
+/* Finding somebody to talk to.
+
+   The member list is not browsable: the server only ever hands a client the
+   people they already share a conversation with, so these pickers have nothing
+   to list until a search is typed. Below the minimum they show a prompt rather
+   than an empty box, because "nothing here" and "I have not looked yet" are
+   different things and look identical otherwise. */
+const SEARCH_MIN = 3;
+
+/* A conversation can arrive naming somebody this client has never been told
+   about: a stranger found by search, or one added to a group by another member.
+   The roster follows from conversations, so re-reading it is what teaches this
+   client the names it now legitimately needs — without ever handing it the
+   names it does not. Costs a request only when an unfamiliar id appears. */
+async function learnMembers(conv) {
+    const unknown = (conv?.members || []).some((id) => id !== S.me.id && !S.users.has(id));
+    if (!unknown) return;
+    try {
+        const { users } = await api('api/users');
+        for (const u of users) S.users.set(u.id, u);
+        renderConvList();
+        if (S.activeConvId) renderHeader();
+    } catch { /* the next bootstrap settles it */ }
+}
+
+// Debounced because it goes to the server on every keystroke. The token guards
+// against an earlier, slower reply landing after a later one and overwriting it.
+function attachUserSearch(input, list, render) {
+    let timer = null;
+    let token = 0;
+    const run = async () => {
+        const q = input.value.trim();
+        const mine = ++token;
+        if (q.length < SEARCH_MIN) { render(null, q); return; }
+        try {
+            const { users } = await api('api/users/search?q=' + encodeURIComponent(q));
+            if (mine === token) render(users, q);
+        } catch (e) {
+            if (mine === token) { render([], q); toast(e.message); }
+        }
+    };
+    input.addEventListener('input', () => {
+        clearTimeout(timer);
+        timer = setTimeout(run, 250);
+    });
+    render(null, '');
+    return run;
+}
+
+// The prompt shown before a search is long enough to run, and the "no matches"
+// line after one that found nothing.
+function searchHint(list, users, q) {
+    list.textContent = '';
+    if (users === null) {
+        list.append(h('p', { class: 'field-hint', text: t('app.search.hint', { n: SEARCH_MIN }) }));
+        return true;
+    }
+    if (!users.length) {
+        list.append(h('p', { class: 'muted', text: t('app.search.none', { q }) }));
+        return true;
+    }
+    return false;
 }
 
 function newChatModal() {
@@ -767,18 +829,15 @@ function newChatModal() {
         const search = h('input', { type: 'search', placeholder: t('app.newChat.searchPlaceholder') });
         const list = h('div', { class: 'list' });
         modal.append(search, list);
-        const render = () => {
-            list.textContent = '';
-            const q = search.value.trim().toLowerCase();
-            const users = [...S.users.values()].filter((u) => u.id !== S.me.id
-                && (!q || u.displayName.toLowerCase().includes(q) || u.username.toLowerCase().includes(q)));
-            if (users.length === 0) list.append(h('p', { class: 'muted', text: t('app.newChat.empty') }));
+        const render = (users, q) => {
+            if (searchHint(list, users, q)) return;
             for (const u of users) {
                 list.append(userRowBtn(u, async () => {
                     try {
                         const { conversation } = await api('api/conversations', {
                             method: 'POST', body: { type: 'direct', userId: u.id },
                         });
+                        S.users.set(u.id, u);          // just met, by name
                         S.convs.set(conversation.id, conversation);
                         close();
                         openConv(conversation.id);
@@ -787,8 +846,8 @@ function newChatModal() {
                 }));
             }
         };
-        search.addEventListener('input', render);
-        render();
+        attachUserSearch(search, list, render);
+        search.focus();
     });
 }
 
@@ -796,19 +855,45 @@ function newGroupModal() {
     openModal((modal, close) => {
         modal.append(h('h3', { text: t('app.newGroup.title') }));
         const name = h('input', { type: 'text', placeholder: t('app.newGroup.namePlaceholder'), maxlength: '50' });
+        const search = h('input', { type: 'search', placeholder: t('app.newChat.searchPlaceholder') });
+        const chosen = h('div', { class: 'chosen' });
         const list = h('div', { class: 'list' });
-        const picked = new Set();
-        modal.append(name, list);
-        for (const u of [...S.users.values()].filter((x) => x.id !== S.me.id)) {
-            const cb = h('input', { type: 'checkbox' });
-            cb.addEventListener('change', () => { cb.checked ? picked.add(u.id) : picked.delete(u.id); });
-            const row = h('label', { class: 'user-row' });
-            row.append(cb, avatarEl(u.displayName, { src: userAvatar(u) }), h('div', { class: 'u-mid' }, [
-                h('div', { class: 'u-name', text: u.displayName }),
-                h('div', { class: 'u-sub', text: '@' + u.username }),
-            ]));
-            list.append(row);
-        }
+        // Keyed by id and holding the whole user, so somebody stays picked — and
+        // still renders — after the search that found them is typed over.
+        const picked = new Map();
+        modal.append(name, search, chosen, list);
+
+        const paintChosen = () => {
+            chosen.textContent = '';
+            if (!picked.size) return;
+            for (const u of picked.values()) {
+                const chip = h('button', {
+                    class: 'chip', type: 'button', title: t('chat.reply_cancel'),
+                    onclick: () => { picked.delete(u.id); paintChosen(); },
+                });
+                chip.append(h('span', { text: u.displayName }), h('span', { class: 'chip-x', text: '✕' }));
+                chosen.append(chip);
+            }
+        };
+
+        const render = (users, q) => {
+            if (searchHint(list, users, q)) return;
+            for (const u of users) {
+                const row = h('label', { class: 'user-row' });
+                const cb = h('input', { type: 'checkbox' });
+                cb.checked = picked.has(u.id);
+                cb.addEventListener('change', () => {
+                    if (cb.checked) picked.set(u.id, u); else picked.delete(u.id);
+                    paintChosen();
+                });
+                row.append(cb, avatarEl(u.displayName, { src: userAvatar(u) }), h('div', { class: 'u-mid' }, [
+                    h('div', { class: 'u-name', text: u.displayName }),
+                    h('div', { class: 'u-sub', text: '@' + u.username }),
+                ]));
+                list.append(row);
+            }
+        };
+        attachUserSearch(search, list, render);
         const row = h('div', { class: 'modal-row' });
         row.append(h('div', { class: 'rec-spacer' }));
         row.append(h('button', { class: 'btn small ghost', type: 'button', text: t('app.newGroup.cancel'), onclick: close }));
@@ -817,8 +902,9 @@ function newGroupModal() {
             onclick: async () => {
                 try {
                     const { conversation } = await api('api/conversations', {
-                        method: 'POST', body: { type: 'group', name: name.value, memberIds: [...picked] },
+                        method: 'POST', body: { type: 'group', name: name.value, memberIds: [...picked.keys()] },
                     });
+                    for (const u of picked.values()) S.users.set(u.id, u);
                     S.convs.set(conversation.id, conversation);
                     close();
                     openConv(conversation.id);
@@ -917,8 +1003,7 @@ function convInfoModal() {
             list.append(row);
         }
 
-        const addable = [...S.users.values()].filter((u) => !conv.members.includes(u.id));
-        if (addable.length) {
+        {
             // A styled button opening the same searchable people list used to
             // start a chat, rather than a raw <select> the browser skins itself.
             const r = h('div', { class: 'modal-row' });
