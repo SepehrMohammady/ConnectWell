@@ -420,6 +420,9 @@ export function onCallRing(d) {
 }
 
 export function onCallDeclined(d) {
+    // Declined on another of my devices (or from a notification): this one has
+    // nothing left to ring for either.
+    if (d.userId === S.me.id && ring && ring.callId === d.callId) dismissRing();
     if (!cur || cur.callId !== d.callId) return;
     toast(t('call.declined', { name: userName(d.userId) }));
     // In a one-to-one call the only person who could answer just said no, so

@@ -1,0 +1,79 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Everything that makes a build YOURS arrives as a property from apps/build.mjs
+// (-Pcw.url=... and so on) or, for the signing secrets, as environment
+// variables — nothing about a particular server is ever written into this
+// project. Without them it builds a placeholder for chat.example.com.
+def cw = { String name, String fallback -> (project.findProperty('cw.' + name) ?: fallback).toString() }
+
+def startUrl = new URI(cw('url', 'https://chat.example.com/connectwell/'))
+if (startUrl.scheme != 'https') throw new GradleException('cw.url must be an https:// address')
+def host = startUrl.host
+def origin = 'https://' + host + (startUrl.port > 0 && startUrl.port != 443 ? ':' + startUrl.port : '')
+def scopePath = startUrl.path ? startUrl.path : '/'
+
+// Digital Asset Links: the half of the verification that lives in the app. The
+// other half is /.well-known/assetlinks.json on the server's domain. The quotes
+// are escaped for an Android string resource, where a bare " is swallowed.
+def assetStatements = '[{\\"relation\\": [\\"delegate_permission/common.handle_all_urls\\"], ' +
+        '\\"target\\": {\\"namespace\\": \\"web\\", \\"site\\": \\"' + origin + '\\"}}]'
+
+android {
+    namespace 'app.connectwell.twa'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId cw('id', 'app.connectwell.example')
+        minSdk 24
+        targetSdk 36
+        versionCode cw('versionCode', '1').toInteger()
+        versionName cw('versionName', '0.0.0')
+
+        resValue 'string', 'appName', cw('name', 'ConnectWell')
+        resValue 'string', 'launcherName', cw('shortName', cw('name', 'ConnectWell'))
+        resValue 'string', 'launchUrl', startUrl.toString()
+        resValue 'string', 'webManifestUrl', startUrl.resolve('manifest.webmanifest').toString()
+        resValue 'string', 'assetStatements', assetStatements
+        resValue 'string', 'providerAuthority', applicationId + '.fileprovider'
+        resValue 'color', 'themeColor', cw('themeColor', '#0e1013')
+        resValue 'color', 'backgroundColor', cw('backgroundColor', '#0e1013')
+
+        // Links to the app's own pages open in the app.
+        manifestPlaceholders = [cwHost: host, cwPath: scopePath]
+    }
+
+    signingConfigs {
+        release {
+            def store = System.getenv('CW_KEYSTORE')
+            if (store) {
+                storeFile file(store)
+                storePassword System.getenv('CW_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('CW_KEY_ALIAS') ?: 'connectwell'
+                keyPassword System.getenv('CW_KEY_PASSWORD') ?: System.getenv('CW_KEYSTORE_PASSWORD')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
+            if (System.getenv('CW_KEYSTORE')) signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        checkReleaseBuilds false
+    }
+}
+
+dependencies {
+    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.7.4'
+}

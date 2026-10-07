@@ -7,3 +7,8 @@
 # core.autocrlf is set to on the machine doing the deploy.
 * text=auto eol=lf
 *.png binary
+*.jar binary
+*.ico binary
+# Windows batch files are the exception: cmd.exe mis-parses labels in some
+# LF-only scripts, and gradlew.bat is only ever run on Windows.
+*.bat text eol=crlf

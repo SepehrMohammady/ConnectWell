@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<!-- Shown on first start by a build that was not made for one particular
+     server: asks where the server is, and checks that one answers there. -->
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src file:; style-src file:; img-src file:">
+    <title>ConnectWell</title>
+    <link rel="stylesheet" href="shell.css">
+    <script src="shell.js" defer></script>
+</head>
+<body data-page="setup">
+    <main class="card">
+        <img class="mark" src="../assets/app.png" alt="">
+        <h1 data-s="setupTitle"></h1>
+        <p class="hint" data-s="setupHint"></p>
+        <form id="setup">
+            <input id="url" type="url" required autocomplete="url" spellcheck="false" dir="ltr">
+            <button type="submit" data-s="setupConnect"></button>
+        </form>
+        <p id="message" class="message" role="status"></p>
+    </main>
+</body>
+</html>

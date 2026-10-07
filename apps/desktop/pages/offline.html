@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<!-- Shown when the server cannot be reached. Keeps retrying by itself, because
+     the app most often starts with Windows, before the network is up. -->
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src file:; style-src file:; img-src file:">
+    <title>ConnectWell</title>
+    <link rel="stylesheet" href="shell.css">
+    <script src="shell.js" defer></script>
+</head>
+<body data-page="offline">
+    <main class="card">
+        <img class="mark" src="../assets/app.png" alt="">
+        <h1 data-s="offlineTitle"></h1>
+        <p class="hint" data-s="offlineBody"></p>
+        <button id="retry" type="button" data-s="retry"></button>
+    </main>
+</body>
+</html>

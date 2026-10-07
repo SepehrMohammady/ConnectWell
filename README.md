@@ -60,8 +60,14 @@ direction, so Persian and English can sit side by side.
 messages and video at a fraction of the data. In a call it is shared: if one
 person needs it, everyone's quality drops with them, and the call says who asked.
 
-🔔 **Nothing missed** — an activity bell collects missed calls and reactions to
-your messages, and each one takes you straight to the message it is about.
+🔔 **Nothing missed** — notifications reach your phone and computer even when
+the app is closed, and a call rings until you answer it. An activity bell
+collects missed calls and reactions to your messages, and each one takes you
+straight to the message it is about.
+
+📱 **Apps for Android and Windows** — your instance, as an installed app with its
+own icon, that rings for calls and lives in the tray. Built from this repository
+for your own server, with nobody's account to sign up for.
 
 🙈 **Second thoughts allowed** — edit or delete a message freely until the other
 person has read it. After that, deleting it needs their agreement.
@@ -142,6 +148,7 @@ deliberate reaction to that.
 | --- | --- |
 | [Deployment guide](docs/DEPLOYMENT.md) | Put it on a server: domain, HTTPS, staying alive, backups, TURN for calls |
 | [Configuration](docs/CONFIGURATION.md) | Every setting, and the file-retention rules |
+| [Apps](docs/APPS.md) | The Android and Windows apps, notifications, and building them for your server |
 | [Architecture](docs/ARCHITECTURE.md) | How it fits together, the HTTP and WebSocket API |
 | [SECURITY.md](SECURITY.md) | What is protected, what is not, reporting a vulnerability |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | The constraints to respect before sending a patch |

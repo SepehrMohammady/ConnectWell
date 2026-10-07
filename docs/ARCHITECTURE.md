@@ -24,11 +24,15 @@ lib/storage.js     shared-file retention sweep
 lib/stats.js       what the admin monitoring panel reports
 lib/deletions.js   delete-with-consent state machine
 lib/ws.js          realtime hub and call signaling
+lib/push.js        background notifications: who is told what, in which language
+lib/webpush.js     the Web Push protocol (VAPID, aes128gcm) on node:crypto
 lib/util.js        hashing, validation, small helpers
 public/            the web app — index.html, app.css, js/*
+public/sw.js       service worker: installability, and showing pushed notifications
 public/js/i18n/    en.js and fa.js dictionaries
+apps/              the Android (Trusted Web Activity) and Windows (Electron) apps
 deploy/            run + watchdog scripts, nginx snippet, sudo setup
-test/              i18n checks and module smoke tests
+test/              i18n checks, push crypto against the RFC, module smoke tests
 docs/              this documentation
 ```
 
@@ -41,6 +45,7 @@ docs/              this documentation
 | `chat.js` | The conversation: rendering, composing, replies, reactions, files, filters. |
 | `calls.js` | WebRTC mesh, perfect negotiation, bitrate caps, call overlay. |
 | `app.js` | Boot, auth, WebSocket, sidebar, modals, admin, activity. |
+| `notify.js` | Notifications on this device: permission, push registration, who shows what, activity reporting, acting on a tapped notification, the Windows app's bridge. |
 | `eco.js` | Efficiency mode: the switch, and image downscaling. |
 | `i18n.js` | `t()` lookup, plurals, slot interpolation. |
 | `theme.js`, `lang.js` | Resolve theme and language *before first paint*; both are blocking scripts in `<head>` for that reason. |
@@ -53,6 +58,8 @@ Everything lives under `api/`:
 `conversations` (+ `/:id/messages`, `/read`, `/members`, `/upload`),
 `files/:id`, `messages/:id` (DELETE, PATCH, `/react`, `/forward`,
 `/delete-request`), `activity` (+ `/seen`), `ice`,
+`push/key`, `push/subscribe`, `push/unsubscribe`, `push/test`,
+`calls/:id/decline`,
 `users/search`, `admin/users` (+ approve/block/unblock/delete, `/password`, `/role`),
 `admin/storage`, `admin/stats`, `health`.
 
@@ -74,7 +81,9 @@ Connect at `ws`. The server pushes:
 `call:state`, `call:ring`, `call:declined`, `call:ended`, `rtc`.
 
 Clients send `typing`, `call:start`, `call:join`, `call:leave`, `call:decline`,
-`call:eco`, `rtc`.
+`call:eco`, `rtc`, and `active` — whether a person is looking at this window
+right now, with the device id that links the socket to that device's push
+registration.
 
 Calls are per-conversation rooms keyed by **connection** id rather than user id,
 so one person joining from two devices works correctly. `call:state` carries the
@@ -134,6 +143,40 @@ will bear, which on mobile data is brutal. Capture constraints and
 `RTCRtpSender` parameters both apply a ceiling, re-applied whenever the peer set
 changes or a track is replaced.
 
+**Background notifications are Web Push, with no third-party account.** The
+server signs with its own VAPID key and encrypts each payload to the device
+(`lib/webpush.js`, pinned to RFC 8291's worked example by `test/push-crypto.js`),
+and the browser's push service delivers it. The Android app is a Trusted Web
+Activity precisely so that Chrome's push can do this there too: a WebView-based
+app would need Firebase, and every self-hoster a Firebase project of their own.
+
+**Whoever is active is not pushed to.** A window reports itself active while it
+is visible, focused and recently touched; the claim expires on the server unless
+renewed, because a phone that drops off the network cannot say it left. A call
+that started while its callee was active, and is still ringing when they stop
+being active, rings their devices then, for the time left.
+
+**Every push leaves something on screen.** Browsers allow only a few pushes a
+day that show nothing before replacing them with a generic notice of their own.
+So the end of a ring is not a silent dismissal: each device that rang is told
+how it ended (missed, answered elsewhere, declined), which both stops the ringing
+and stays as a truthful note — and the device that answered or declined is the
+one device not told. The service worker shows nothing only when a window of the
+app is in front on that same device.
+
+**Notification tags are a contract.** `cw-conv-<id>` (messages, merged),
+`cw-ring-<id>` (a ringing call) and `cw-call-<id>` (how it ended) are read by
+`public/sw.js`, by the page, and by the Android app's `DelegationService`, which
+gives `cw-ring-` its own ringtone channel and loops it until the notification is
+withdrawn. Change them in all three places together.
+
+**A push registration lives and dies with its session.** `push_subs` cascades
+from `sessions`, so signing out, a password change that revokes other sessions,
+an admin block or reset, and plain expiry all take the device's notifications
+with them — a notification carries message text, and must not outlive the access
+it came from. The endpoint a browser hands over is checked against `PUSH_HOSTS`
+before the server will ever request it.
+
 ## Tests
 
 ```bash
@@ -142,8 +185,9 @@ npm test
 
 Checks that every referenced translation key resolves, that no key is unused,
 that the Farsi dictionary matches English key-for-key and slot-for-slot, that no
-`t()` is called at module scope, and that every frontend module executes under a
-DOM shim in both languages.
+`t()` is called at module scope, that Web Push encryption reproduces RFC 8291's
+worked example byte for byte and its VAPID tokens verify, and that every
+frontend module executes under a DOM shim in both languages.
 
 ## Versioning
 

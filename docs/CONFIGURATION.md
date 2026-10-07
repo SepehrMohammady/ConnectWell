@@ -43,6 +43,32 @@ Every value has a working default. The only one a real deployment must set is
 Setting up the relay itself is covered in the
 [deployment guide](DEPLOYMENT.md#calls-on-difficult-networks).
 
+## Background notifications
+
+Notifications that reach a device while ConnectWell is closed — in the Android
+and Windows apps, and in browsers that support it — are on by default and need
+no setup. On first start the server generates its own key pair into
+`data/push-vapid.json`; that is the whole configuration. See
+[Apps](APPS.md#how-notifications-work) for what is notified, and to whom.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `PUSH_ENABLED` | on | `0` switches background notifications off. Notifications while the app is open are unaffected. |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | generated | Supply the server's key pair yourself instead, e.g. from a secret store. **Never change it afterwards**: every device subscribed under the old key stops receiving anything until the app is next opened there. |
+| `VAPID_SUBJECT` | `PUBLIC_ORIGIN` | How the push services can contact whoever runs the server: an `https:` or `mailto:` address. |
+| `PUSH_HOSTS` | the four browser push services | Comma-separated hosts the server will deliver to (subdomains included; `host:port` for a non-standard port). |
+
+`PUSH_HOSTS` exists because the server sends each notification to an address the
+*browser* chose. Without a list, any signed-in user could register an internal
+address and have the server make requests to it. The default covers Chrome and
+Android (`fcm.googleapis.com`), Edge (`notify.windows.com`), Firefox
+(`push.services.mozilla.com`) and Safari (`push.apple.com`); add a host only if
+you know a browser your users run delivers through it.
+
+The key file is part of `data/` and should be backed up with it. Losing it is
+not a disaster — devices re-register the next time the app is opened — but until
+then they receive nothing in the background.
+
 ## Shared-file retention
 
 Chat uploads in `data/uploads` can be reclaimed automatically by two independent

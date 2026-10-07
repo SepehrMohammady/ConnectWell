@@ -93,6 +93,15 @@ The `[a]` in that pattern is deliberate and not a typo. Run over SSH, a plain
 `pkill -f apps/connectwell/server.js` also matches the shell running the command
 and kills your own session along with the app.
 
+## Notifications and the apps
+
+Background notifications need nothing configured: the server generates its own
+key on first start and delivers through the browsers' push services, so it only
+needs to be able to make outgoing HTTPS requests. The Android and Windows apps
+are built from this repository for your server — see [Apps](APPS.md), including
+the one file (`/.well-known/assetlinks.json`) your domain serves for the Android
+app.
+
 ## Backups
 
 Everything that matters is in `data/` — the database, the uploads, the avatars.

@@ -44,6 +44,19 @@ These are not stylistic preferences; breaking them breaks the app.
   bug this project can ship.
 - **Server-generated messages** must pass `markRead: false` to `addMessage`, or
   they silently clear somebody's unread badge.
+- **Notification tags are shared** between `public/sw.js`, the page and the
+  Android app's `DelegationService` (`cw-conv-`, `cw-ring-`, `cw-call-`). Change
+  them in all three together, and remember every push must leave a notification
+  on screen.
+
+## The apps
+
+`apps/` holds the Android and Windows apps ([docs/APPS.md](docs/APPS.md)). They
+are separate from the server: the server's two dependencies stay two. The
+Windows app has its own `package.json` (Electron, electron-builder) and the
+Android app is a Gradle project. Both are thin — the interface is always the
+web app — so most changes belong in `public/`, not here. If you change the logo,
+run `node apps/icons.mjs` to regenerate every derived icon.
 
 ## Style
 

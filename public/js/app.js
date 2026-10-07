@@ -3,7 +3,7 @@
 import { api, postBytes } from './api.js';
 import { makeAvatar } from './avatar.js';
 import {
-    S, $, h, bus, net, toast, popSound, avatarEl, userName, convTitle, convOther,
+    S, $, h, bus, net, toast, popSound, ringStop, avatarEl, userName, convTitle, convOther,
     fmtListTime, fmtSize, userAvatar, convAvatarSrc, closeControl,
 } from './core.js';
 import {
@@ -12,11 +12,16 @@ import {
     jumpToMessage,
 } from './chat.js';
 import {
-    initCalls, onCallState, onCallRing, onCallDeclined, onCallEnded, onRtc, updateChip,
+    initCalls, onCallState, onCallRing, onCallDeclined, onCallEnded, onRtc, updateChip, joinCall,
 } from './calls.js';
 import { t, applyStatic } from './i18n.js';
 import { ecoOn, setEco } from './eco.js';
 import { BACKGROUNDS, chatBg, setChatBg } from './bg.js';
+import {
+    initNotify, registerWorker, setPushKey, syncPush, enableNotifications, notificationState,
+    isDesktopApp, forgetDevice, sendTest, notifyLocal, closeNotifications, setUnread,
+    reportActivity, startActivityReporting, openIntents, offerNotifications,
+} from './notify.js';
 
 // A table of literal keys rather than 'app.bg.' + name: the i18n check scans the
 // source for string literals, and a key assembled at runtime is invisible to it.
@@ -71,70 +76,93 @@ async function initFooter() {
 }
 
 /* ---------------- notifications ----------------
-   System notifications so a backgrounded tab still surfaces an incoming call or
-   message. The browser's own permission is the on/off switch — no second toggle
-   to disagree with it. Notifications only fire while the tab is hidden; a
-   visible tab already shows the ring banner and unread badges. */
+   The mechanics — permission, background delivery, who shows what — live in
+   notify.js. The browser's own permission is the on/off switch; there is no
+   second toggle to disagree with it. */
 
-const NOTIF_HINT_KEY = 'cw_notif_hint';
-const callNotifs = new Map();   // callId -> Notification, closed on answer/end
+// The tag of the notification ringing for a conversation's call, and the call
+// it rang for, so a late timeout never closes a newer call's ring.
+const ringTag = (convId) => 'cw-ring-' + convId;
+const ringing = new Map();   // convId -> callId
 
-function notify(title, body, { tag, sticky = false, onclick } = {}) {
-    if (!('Notification' in window) || Notification.permission !== 'granted') return null;
-    if (!document.hidden) return null;
-    try {
-        const n = new Notification(title, {
-            body, tag, icon: 'icon-192.png', requireInteraction: sticky,
-        });
-        n.onclick = () => {
-            try { window.focus(); } catch { /* some platforms refuse */ }
-            if (onclick) onclick();
-            n.close();
-        };
-        return n;
-    } catch { return null; }
-}
-
-function closeCallNotif(callId) {
-    const n = callNotifs.get(callId);
-    if (n) { n.close(); callNotifs.delete(callId); }
-}
-
-// One gentle pointer to the profile switch, once per device — a call ringing
-// into a hidden tab with notifications off is exactly the miss the owner wants
-// to prevent.
-function maybeNotifHint() {
-    try {
-        if (!('Notification' in window) || Notification.permission !== 'default') return;
-        if (localStorage.getItem(NOTIF_HINT_KEY)) return;
-        localStorage.setItem(NOTIF_HINT_KEY, '1');
-        toast(t('app.notif.hintToast'), 6000);
-    } catch { /* private mode */ }
+function stopRingNotice(convId) {
+    if (convId == null) return;
+    ringing.delete(convId);
+    closeNotifications(ringTag(convId));
 }
 
 function notifSection() {
     const wrap = h('div', {});
     const paint = () => {
         wrap.textContent = '';
-        if (!('Notification' in window)) {
-            wrap.append(h('p', { class: 'field-hint', text: t('app.notif.unsupported') }));
-        } else if (Notification.permission === 'granted') {
-            wrap.append(h('p', { class: 'field-hint', text: t('app.notif.enabled') }));
-        } else if (Notification.permission === 'denied') {
-            wrap.append(h('p', { class: 'field-hint', text: t('app.notif.blocked') }));
-        } else {
-            wrap.append(h('p', { class: 'field-hint', text: t('app.notif.hint') }));
+        const line = (key) => wrap.append(h('p', { class: 'field-hint', text: t(key) }));
+        const state = notificationState();
+        if (state === 'unsupported') return line('app.notif.unsupported');
+        if (state === 'denied') return line('app.notif.blocked');
+        if (state === 'default') {
+            line('app.notif.hint');
             wrap.append(h('button', {
                 class: 'btn small', type: 'button', text: t('app.notif.enable'),
                 onclick: async () => {
-                    try { await Notification.requestPermission(); } catch { /* dismissed */ }
+                    if (await enableNotifications() === 'local') toast(t('app.notif.pushFailed'), 6000);
                     paint();
+                    offerNotifications();
                 },
             }));
+            return;
         }
+        line('app.notif.enabled');
+        // Said plainly, because it decides whether a call can reach you with the
+        // app closed — and in a browser without background delivery it cannot.
+        line(isDesktopApp() ? 'app.notif.desktop'
+            : state === 'on' ? 'app.notif.background' : 'app.notif.foregroundOnly');
+        wrap.append(h('button', {
+            class: 'btn small ghost', type: 'button', text: t('app.notif.test'),
+            onclick: async (e) => {
+                const btn = e.currentTarget;
+                btn.disabled = true;
+                try { await sendTest(); toast(t('app.notif.testSent')); }
+                catch (err) { toast(err.message); }
+                btn.disabled = false;
+            },
+        }));
     };
     paint();
     return wrap;
+}
+
+// Where a tapped notification leads. Runs once the app is signed in and its
+// socket is up (see openIntents): answering a call needs both.
+function handleIntent(intent) {
+    if (intent.admin) {
+        if (S.me?.role === 'admin') adminModal();
+        return;
+    }
+    if (!S.convs.has(intent.conv)) return;
+    // Declined from the Windows app's call toast: no window needed for a no.
+    if (intent.call && intent.decline) {
+        net.send('call:decline', { callId: intent.call });
+        return;
+    }
+    if (intent.call) {
+        // Matched by conversation, not by call id: if the caller has hung up and
+        // rung again, the call to pick up is the one ringing now.
+        const call = S.calls.get(intent.conv);
+        if (call && !call.participants.some((p) => p.userId === S.me.id)) {
+            if (intent.answer) {
+                joinCall(call.callId, call.convId, call.kind);
+            } else {
+                openConv(intent.conv);
+                onCallRing({ callId: call.callId, convId: call.convId, kind: call.kind, from: call.startedBy });
+            }
+            return;
+        }
+        // Over by now: the conversation holds the record of it.
+        openConv(intent.conv);
+        return;
+    }
+    if (intent.msg) { jumpToMessage(intent.conv, intent.msg); return; }
+    openConv(intent.conv);
 }
 
 /* ---------------- install (PWA) ----------------
@@ -169,9 +197,7 @@ function paintInstallBtn() {
 function initInstall() {
     // The service worker is what makes the app installable; without it the browser
     // never offers install. A failure here is non-fatal — install just isn't shown.
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js').catch(() => { });
-    }
+    registerWorker();
     const btn = $('btn-install');
     if (btn) {
         btn.addEventListener('click', async () => {
@@ -281,9 +307,13 @@ function onActivityNew(item) {
     if (item.kind === 'reaction' && (item.convId !== S.activeConvId || document.hidden)) {
         popSound();
     }
-    notify(userName(item.actorId), activityLabel(item), {
-        tag: 'cw-activity',
-        onclick: () => { if (S.convs.has(item.convId)) jumpToMessage(item.convId, item.messageId); },
+    // A missed call takes the place of the ring it ends; a reaction is its own.
+    notifyLocal({
+        kind: item.kind === 'reaction' ? 'react' : 'call',
+        tag: item.kind === 'reaction' ? 'cw-react-' + item.messageId : 'cw-call-' + item.convId,
+        title: userName(item.actorId),
+        body: activityLabel(item),
+        intent: { conv: item.convId, msg: item.kind === 'reaction' ? item.messageId : undefined },
     });
 }
 
@@ -374,7 +404,11 @@ async function enterApp() {
     renderMe();
     renderConvList();
     connectWs();
-    maybeNotifHint();
+    startActivityReporting();
+    // Re-registered on every start: cheap, and it repairs a registration the
+    // server dropped or a key that changed. The offer waits for the answer, so
+    // it is never shown to someone who is already set up.
+    syncPush().finally(offerNotifications);
 }
 
 function applyBootstrap(data) {
@@ -386,6 +420,7 @@ function applyBootstrap(data) {
     primeDelReqs(data.deleteRequests);
     activityUnseen = data.activityUnseen || 0;
     paintActivityBadge();
+    setPushKey(data.push?.key);
     if (S.activeConvId && !S.convs.has(S.activeConvId)) closeConv();
 }
 
@@ -463,6 +498,11 @@ const EVENTS = {
         renderConvList();
         updateChip();
         for (const c of d.calls) onCallState(c);
+        // The server holds background notifications for whoever is active, and
+        // this connection starts out counted as not.
+        reportActivity(true);
+        // Signed in, loaded and connected: a tapped notification can be acted on.
+        openIntents(handleIntent);
     },
     'msg:new'(d) {
         const m = d.message;
@@ -474,11 +514,12 @@ const EVENTS = {
             conv.unread = (conv.unread || 0) + 1;
             popSound();
             // Tagged per conversation so a burst coalesces into one notification.
-            notify(conv.type === 'group' ? convTitle(conv) : userName(m.senderId),
-                previewText(conv), {
-                    tag: 'cw-msg-' + conv.id,
-                    onclick: () => openConv(conv.id),
-                });
+            notifyLocal({
+                kind: 'msg', tag: 'cw-conv-' + conv.id,
+                title: conv.type === 'group' ? convTitle(conv) : userName(m.senderId),
+                body: previewText(conv),
+                intent: { conv: conv.id },
+            });
         }
         onMsgNew(m);
         renderConvList();
@@ -544,6 +585,12 @@ const EVENTS = {
             S.pendingCount += 1;
             renderAdminBadge();
             toast(t('app.toast.userPending', { name: d.user.displayName }));
+            notifyLocal({
+                kind: 'admin', tag: 'cw-admin',
+                title: t('app.admin.title'),
+                body: t('app.toast.userPending', { name: d.user.displayName }),
+                intent: { admin: true },
+            });
         }
     },
     // Someone was renamed, approved, blocked or deleted: refresh every place
@@ -562,33 +609,42 @@ const EVENTS = {
     'call:state'(d) {
         onCallState(d);
         // Answered on this or another of my devices: the call notification is done.
-        if (callNotifs.has(d.callId) && d.participants.some((p) => p.userId === S.me.id)) {
-            closeCallNotif(d.callId);
-        }
+        if (d.participants.some((p) => p.userId === S.me.id)) stopRingNotice(d.convId);
     },
     'call:ring'(d) {
         onCallRing(d);
-        const n = notify(userName(d.from),
-            t(d.kind === 'video' ? 'call.ring_sub_video' : 'call.ring_sub_voice'), {
-                tag: 'cw-call-' + d.callId, sticky: true,
-                onclick: () => openConv(d.convId),
-            });
-        if (n) {
-            callNotifs.set(d.callId, n);
-            // Mirror the in-app ring timeout so a sticky notification cannot
-            // outlive the ring itself.
-            setTimeout(() => closeCallNotif(d.callId), 45_000);
-        }
+        if (d.from === S.me.id) return;
+        const conv = S.convs.get(d.convId);
+        ringing.set(d.convId, d.callId);
+        const byWindows = notifyLocal({
+            kind: 'ring', tag: ringTag(d.convId), sticky: true,
+            labels: { answer: t('ui.ring.accept'), decline: t('ui.ring.decline') },
+            title: userName(d.from),
+            body: conv?.type === 'group'
+                ? t(d.kind === 'video' ? 'call.ring_sub_video_group' : 'call.ring_sub_voice_group', { title: convTitle(conv) })
+                : t(d.kind === 'video' ? 'call.ring_sub_video' : 'call.ring_sub_voice'),
+            intent: { conv: d.convId, call: d.callId },
+        });
+        // The Windows app's call toast is already ringing; two ringtones at once
+        // would be noise. The banner in the window stays, just silent.
+        if (byWindows) ringStop();
+        // A backstop only: the server always ends an unanswered call, and that
+        // event closes this. Checked against the call id so a newer call in the
+        // same conversation is never silenced by an older one's timer.
+        setTimeout(() => { if (ringing.get(d.convId) === d.callId) stopRingNotice(d.convId); }, 90_000);
     },
     'call:declined'(d) {
         onCallDeclined(d);
-        // My own decline comes back over the broadcast — clear the sticky call
-        // notification now rather than letting it sit until the 45s timeout.
-        if (d.userId === S.me.id) closeCallNotif(d.callId);
+        // My own decline, from this or another device: nothing left to ring for.
+        if (d.userId === S.me.id) {
+            for (const [convId, callId] of ringing) if (callId === d.callId) stopRingNotice(convId);
+        }
     },
     'call:ended'(d) {
+        // Read before onCallEnded forgets the call: the event may not name it.
+        const convId = d.convId ?? [...S.calls.values()].find((c) => c.callId === d.callId)?.convId;
         onCallEnded(d);
-        closeCallNotif(d.callId);
+        stopRingNotice(convId);
     },
     rtc(d) { onRtc(d); },
 };
@@ -690,11 +746,14 @@ export function renderConvList() {
 }
 bus.on('convs-changed', renderConvList);
 bus.on('conv-opened', () => renderConvList());
+// Reading a conversation retires the notification that announced it.
+bus.on('conv-opened', (convId) => closeNotifications('cw-conv-' + convId));
 
 function updateTitle() {
     let total = 0;
     for (const c of S.convs.values()) total += c.unread || 0;
     document.title = (total > 0 ? `(${total}) ` : '') + 'ConnectWell';
+    setUnread(total);
 }
 
 function renderAdminBadge() {
@@ -1601,8 +1660,9 @@ function initSidebar() {
     $('btn-logout').addEventListener('click', async () => {
         // Drafts are this account's unsent words, held on the device. They go
         // before the session does, so the next person to sign in here never
-        // sees them.
+        // sees them. The same goes for this account's notifications.
         clearDrafts();
+        await forgetDevice();
         try { await api('api/logout', { method: 'POST' }); } catch { }
         location.reload();
     });
@@ -1671,5 +1731,7 @@ applyStatic();
 initTheme();
 initAuthLanguage();
 initInstall();
+// Before boot, so a notification tap that opened the app survives the sign-in.
+initNotify();
 initFooter();
 boot();

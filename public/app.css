@@ -821,6 +821,18 @@ body { height: 100dvh; display: flex; flex-direction: column; }
     background: var(--danger); color: var(--on-danger);
     font-size: .85rem; font-weight: 600;
 }
+/* The offer to turn notifications on: the same kind of row as .conn-bar, for
+   the same reason. Whichever of the two is on top takes the notch inset. */
+.notif-bar {
+    flex: none;
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: .4rem .6rem;
+    padding: calc(.45rem + env(safe-area-inset-top, 0px)) .8rem .45rem;
+    background: var(--accent-tint); color: var(--text);
+    border-bottom: 1px solid var(--border);
+    font-size: .85rem;
+}
+.conn-bar:not([hidden]) + .notif-bar { padding-top: .45rem; }
+.notif-text { flex: 1 1 16rem; text-align: center; }
 .unread-sep {
     display: flex; align-items: center; gap: .6rem;
     margin: .8rem 0 .4rem; color: var(--danger);

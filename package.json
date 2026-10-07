@@ -1,6 +1,6 @@
 {
   "name": "connectwell",
-  "version": "0.23.0",
+  "version": "0.24.0",
   "private": true,
   "description": "Self-hosted private messenger with file sharing and audio/video calls — one Node process, SQLite, no build step",
   "keywords": [
@@ -31,7 +31,8 @@
     "start": "node server.js",
     "test:i18n": "node test/i18n-check.js",
     "test:smoke": "node test/smoke.mjs && node test/smoke.mjs fa",
-    "test": "node test/i18n-check.js && node test/smoke.mjs && node test/smoke.mjs fa"
+    "test": "node test/i18n-check.js && node test/push-crypto.js && node test/smoke.mjs && node test/smoke.mjs fa",
+    "test:push": "node test/push-crypto.js"
   },
   "dependencies": {
     "express": "^5.1.0",

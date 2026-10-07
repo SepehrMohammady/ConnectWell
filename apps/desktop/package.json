@@ -1,0 +1,18 @@
+{
+  "name": "connectwell-desktop",
+  "productName": "ConnectWell",
+  "version": "0.24.0",
+  "description": "ConnectWell for Windows: the web app in its own window, with native notifications from the tray",
+  "author": "Sepehr Mohammady",
+  "license": "MIT",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --config electron-builder.config.cjs --win --publish never"
+  },
+  "devDependencies": {
+    "electron": "44.6.0",
+    "electron-builder": "26.15.3"
+  }
+}

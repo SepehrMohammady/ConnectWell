@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="channel_calls">تماس‌ها</string>
+    <string name="channel_calls_description">تماس‌های صوتی و تصویری ورودی. تا وقتی پاسخ دهید، رد کنید یا تماس تمام شود زنگ می‌زند.</string>
+    <string name="channel_call_status">تماس‌های بی‌پاسخ</string>
+    <string name="channel_call_status_description">تماس‌هایی که از دست داده‌اید، و تماس‌هایی که در دستگاه دیگری پاسخ داده یا رد شده‌اند.</string>
+</resources>

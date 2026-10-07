@@ -1,0 +1,23 @@
+// ConnectWell for Android: a Trusted Web Activity — the web app running in the
+// phone's Chrome, as an installed app with its own icon and notifications.
+// Build it with apps/build.mjs, which passes in your server's address and your
+// signing key (docs/APPS.md). Opened directly in Android Studio it builds a
+// placeholder pointing at chat.example.com.
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = 'ConnectWell'
+include ':app'

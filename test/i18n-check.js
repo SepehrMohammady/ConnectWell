@@ -31,7 +31,7 @@ const RECOMBINED = {
 
 // System-event keys are chosen by the SERVER and arrive on the message, so they
 // never appear as literals in client code. Their original English lives here too.
-const SERVER_FILES = ['lib/api.js'];
+const SERVER_FILES = ['lib/api.js', 'lib/push.js'];
 
 // The "traces to the original English" check compares against the last commit
 // BEFORE the strings were extracted. HEAD is no longer usable for this: once the
@@ -54,6 +54,18 @@ const BASELINE_REF = (() => {
 // to trace to. Adding a key here is a deliberate act — it is the only way to
 // bypass the check, so keep the reason honest.
 const NEW_SINCE_BASELINE = {
+    'app.notif.background': 'background notifications and the apps (0.24.0)',
+    'app.notif.foregroundOnly': 'background notifications and the apps (0.24.0)',
+    'app.notif.desktop': 'background notifications and the apps (0.24.0)',
+    'app.notif.test': 'background notifications and the apps (0.24.0)',
+    'app.notif.testSent': 'background notifications and the apps (0.24.0)',
+    'app.notif.pushFailed': 'background notifications and the apps (0.24.0)',
+    'app.notif.banner': 'background notifications and the apps (0.24.0)',
+    'app.notif.later': 'background notifications and the apps (0.24.0)',
+    'push.answered_elsewhere': 'background notifications and the apps (0.24.0)',
+    'push.declined_elsewhere': 'background notifications and the apps (0.24.0)',
+    'push.delreq': 'background notifications and the apps (0.24.0)',
+    'push.test': 'background notifications and the apps (0.24.0)',
     'app.search.hint': 'searchable people picker (0.23.0)',
     'app.search.none': 'searchable people picker (0.23.0)',
     'app.profile.background': 'conversation backdrop (0.22.0)',
@@ -164,7 +176,6 @@ const NEW_SINCE_BASELINE = {
     'app.notif.enabled': 'notifications (0.8.0)',
     'app.notif.blocked': 'notifications (0.8.0)',
     'app.notif.unsupported': 'notifications (0.8.0)',
-    'app.notif.hintToast': 'notifications (0.8.0)',
     'ui.sidebar.install': 'PWA install button (0.9.0)',
     'ui.call.flip': 'rear-camera switch (0.10.0)',
     'call.swap': 'swap main/PiP view (0.10.0)',
@@ -211,7 +222,7 @@ for (const m of en.matchAll(/^\s{4}"((?:[^"\\]|\\.)*)":\s*"((?:[^"\\]|\\.)*)",$/
     dict[JSON.parse('"' + m[1] + '"')] = JSON.parse('"' + m[2] + '"');
 }
 
-const JS = ['app', 'core', 'chat', 'calls', 'avatar'].map((f) => 'public/js/' + f + '.js');
+const JS = ['app', 'core', 'chat', 'calls', 'avatar', 'notify'].map((f) => 'public/js/' + f + '.js');
 let fail = 0;
 const ok = (l) => console.log('  PASS ' + l);
 const bad = (l, d) => { fail++; console.log('  FAIL ' + l + (d ? '\n        ' + d : '')); };
@@ -251,7 +262,8 @@ else ok('no unused keys');
 let original = '';
 if (BASELINE_REF) {
     for (const f of [...JS, ...SERVER_FILES, 'public/index.html']) {
-        try { original += cp.execSync('git show ' + BASELINE_REF + ':' + f, { encoding: 'utf8', maxBuffer: 1 << 24 }); } catch { }
+        // A file added since the baseline simply has no original to trace to.
+        try { original += cp.execSync('git show ' + BASELINE_REF + ':' + f, { encoding: 'utf8', maxBuffer: 1 << 24, stdio: ['ignore', 'pipe', 'ignore'] }); } catch { }
     }
 }
 const squash = (s) => s.replace(/\s+/g, '');

@@ -286,7 +286,21 @@ export default {
     "app.notif.enabled": "Notifications are on.",
     "app.notif.blocked": "Notifications are blocked for this site in your browser settings.",
     "app.notif.unsupported": "This browser does not support notifications.",
-    "app.notif.hintToast": "Tip: enable notifications in your profile so you never miss a call.",
+    "app.notif.background": "They reach this device even when ConnectWell is closed.",
+    "app.notif.foregroundOnly": "This browser can only notify you while ConnectWell is open.",
+    "app.notif.desktop": "They appear while the ConnectWell app is running, including from the tray.",
+    "app.notif.test": "Send a test notification",
+    "app.notif.testSent": "Sent. It should appear within a few seconds.",
+    "app.notif.pushFailed": "Notifications are on, but only while ConnectWell is open in this browser.",
+    "app.notif.banner": "Turn on notifications to hear about calls and messages when ConnectWell is closed.",
+    "app.notif.later": "Not now",
+
+    /* Background notifications: rendered by the server (lib/push.js), per
+       device, in the language that device uses. */
+    "push.answered_elsewhere": "Answered on another device",
+    "push.declined_elsewhere": "Declined on another device",
+    "push.delreq": "Asks to delete a message you have read",
+    "push.test": "Notifications work on this device.",
 
     /* Stored system events. The server also writes the English sentence to
        messages.content, so rows created before these keys existed still render,

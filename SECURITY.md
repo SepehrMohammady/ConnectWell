@@ -44,6 +44,17 @@ trust you, this is a reasonable design.
   relay refuses to forward toward loopback, link-local and private ranges, so it
   cannot be turned into a probe of your internal network.
 - **Rate limiting** — on registration, login, reactions and deletion requests.
+- **Background notifications** — payloads are encrypted to the receiving device
+  (RFC 8291), so the push service that carries them (Google, Microsoft, Mozilla
+  or Apple, depending on the browser) learns that a notification was sent, when,
+  and roughly how large — not what it says. A device's registration is tied to
+  the session that made it and is deleted with it: signing out, a revoked
+  session, a block or a password reset stop that device's notifications. The
+  server only ever delivers to the push services listed in `PUSH_HOSTS`, so a
+  user cannot point it at an internal address.
+
+Note that a notification shows message text on the device it reaches, including
+on a locked screen, as the phone's own settings allow.
 
 ## Running it safely
 

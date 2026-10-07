@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Names of the app's own notification channels, as shown in the phone's
+     settings. Everything else the app says comes from the web app itself. -->
+<resources>
+    <string name="channel_calls">Calls</string>
+    <string name="channel_calls_description">Incoming voice and video calls. Rings until you answer, decline, or the call ends.</string>
+    <string name="channel_call_status">Missed calls</string>
+    <string name="channel_call_status_description">Calls you missed, and calls answered or declined on another device.</string>
+</resources>
