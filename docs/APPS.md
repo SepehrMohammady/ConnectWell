@@ -115,32 +115,51 @@ later builds take under a minute. The first Windows build downloads Electron.
 
 ### 3. Prove the Android app belongs to your domain
 
-Android lets the app show your site full screen — no browser bar — and deliver
-its notifications under the app's own name only once your domain confirms the
-app is yours. That confirmation is a small public file, printed by step 1 and
-saved as `dist/assetlinks.json`:
+Until this is done, the Android app opens like a browser tab: a bar across the
+top shows the address, a close button and a menu, and notifications arrive as
+Chrome's rather than the app's. Android removes all of that — the app runs full
+screen, with its own notifications and its ringing call channel — once your
+domain confirms the app is yours, with a small public file at the **root of the
+domain**, even when ConnectWell lives under a path:
 
 ```
 https://chat.example.com/.well-known/assetlinks.json
 ```
 
-It must be at the **root of the domain**, even when ConnectWell lives under a
-path, served with status 200, `Content-Type: application/json` and no redirect.
-With nginx:
+It holds only the app's id and the *public* fingerprint of its signing key, and
+must be served with status 200, `Content-Type: application/json` and no
+redirect. Steps 1 and 2 print everything needed for either way of serving it.
+
+**Let ConnectWell serve it** (recommended). Add the two lines the build printed
+to the server's `.env` and restart:
+
+```ini
+ANDROID_APP_ID=com.example.chat
+ANDROID_CERT_SHA256=AB:CD:…
+```
+
+ConnectWell then answers at `/connectwell/.well-known/assetlinks.json`. If it is
+installed at the root of its domain, that is already the right address; under a
+path, hand the root path to it once in the reverse proxy — the commented block at
+the end of [`deploy/nginx-connectwell.conf`](../deploy/nginx-connectwell.conf):
 
 ```nginx
 location = /.well-known/assetlinks.json {
-    alias /etc/nginx/connectwell-assetlinks.json;
-    default_type application/json;
+    proxy_pass http://127.0.0.1:3010/connectwell/.well-known/assetlinks.json;
 }
 ```
 
-Without it the app still works — Chrome shows a slim address bar at the top, and
-notifications arrive as Chrome's rather than the app's.
+After that one line, the app's identity is ConnectWell's own configuration:
+renaming the app or adding a key is an `.env` change, with no change to whatever
+else your domain serves. If the site denies paths starting with a dot (a common
+rule that protects `.git`), keep it — an exact-match location wins over it.
 
-The file contains only the app's id and the *public* fingerprint of its signing
-key. If you publish on Google Play with Play App Signing, add the fingerprint
-Play shows you (Setup → App signing) to the same list.
+**Or publish the file yourself** — `dist/assetlinks.json` from the build, placed
+so that the address above serves it.
+
+Both are lists: during a rename, list the old and new ids; if you publish on
+Google Play with Play App Signing, add the fingerprint Play shows you
+(Setup → App signing) beside your own.
 
 Check it with Google's tool:
 `https://digitalassetlinks.googleapis.com/v1/statements:list?source.web.site=https://chat.example.com&relation=delegate_permission/common.handle_all_urls`
@@ -203,7 +222,7 @@ increases with it, so a new APK installs over the old one.
 | --- | --- |
 | Profile → Notifications says *only while ConnectWell is open* | This browser offers no background push (or refused it — e.g. Brave with Google push disabled). Use the app, or Chrome / Edge / Firefox. |
 | The test notification never arrives | The server cannot reach the push service (outbound firewall), or the server log shows `push:` errors. |
-| Android: a browser bar at the top of the app | `assetlinks.json` is not being served exactly as described in step 3. |
+| Android: the app looks like a browser tab (address bar, close button, menu) | `assetlinks.json` is not being served exactly as described in step 3, or lists a different id or key than the installed app. Once it is right, force-stop the app and open it again; if the bar persists, reinstall it. |
 | Android: notifications show Chrome's icon, not the app's | Same as above: without the verification, Chrome shows them itself. |
 | Android: calls do not ring | The *Calls* channel was turned down in the app's notification settings, or the phone is on silent. |
 | Windows: no notifications at all | Notifications for the app are off in *Settings → System → Notifications*, or Focus assist is on. |

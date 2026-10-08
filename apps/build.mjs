@@ -191,13 +191,30 @@ function init(dir, opts) {
 
 function assetlinks(dir) {
     const inst = loadInstance(dir);
-    const json = JSON.stringify(assetLinks(inst, signing(dir)), null, 2) + '\n';
+    const links = assetLinks(inst, signing(dir));
+    const json = JSON.stringify(links, null, 2) + '\n';
     const out = path.join(dir, 'dist', 'assetlinks.json');
     fs.mkdirSync(path.dirname(out), { recursive: true });
     fs.writeFileSync(out, json);
-    const origin = new URL(inst.url).origin;
-    console.log(`\n• ${out}\n  Serve it at ${origin}/.well-known/assetlinks.json (status 200, application/json, no redirect).`);
-    console.log('  Until it is there the Android app still works, but shows a browser bar and Chrome shows its notifications.\n');
+    const u = new URL(inst.url);
+    const fingerprint = links[0].target.sha256_cert_fingerprints[0];
+    console.log(`
+• Android only runs the app full screen — no browser bar, its own notifications —
+  once ${u.origin}/.well-known/assetlinks.json vouches for it
+  (status 200, application/json, no redirect). Either:
+
+  a) let ConnectWell serve it: add to the server's .env and restart,
+       ANDROID_APP_ID=${inst.id}
+       ANDROID_CERT_SHA256=${fingerprint}
+     then map the path in the reverse proxy (deploy/nginx-connectwell.conf):
+       location = /.well-known/assetlinks.json {
+           proxy_pass http://127.0.0.1:3010${u.pathname}.well-known/assetlinks.json;
+       }
+     (needed only when ConnectWell is not at the root of its domain)
+
+  b) or publish this file there yourself:
+       ${out}
+`);
     console.log(json);
 }
 

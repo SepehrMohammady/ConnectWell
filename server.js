@@ -47,6 +47,21 @@ app.get(B, (req, res, next) => {
     if (url === B || url.startsWith(B + '?')) return res.redirect(301, B + '/');
     next();
 });
+// The Android app's Digital Asset Links (config.js explains): published only
+// when the app's identity is configured, and built once, since it only ever
+// changes with the configuration.
+if (config.ANDROID_APP_ID.length && config.ANDROID_CERT_SHA256.length) {
+    const assetLinks = Buffer.from(JSON.stringify(config.ANDROID_APP_ID.map((pkg) => ({
+        relation: ['delegate_permission/common.handle_all_urls'],
+        target: { namespace: 'android_app', package_name: pkg, sha256_cert_fingerprints: config.ANDROID_CERT_SHA256 },
+    })), null, 2) + '\n');
+    app.get(B + '/.well-known/assetlinks.json', (req, res) => {
+        res.set('Content-Type', 'application/json');
+        res.set('Cache-Control', 'public, max-age=3600');
+        res.send(assetLinks);
+    });
+}
+
 app.use(B + '/api', api);
 app.use(B, express.static(path.join(__dirname, 'public'), {
     setHeaders(res, filePath) {

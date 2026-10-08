@@ -63,6 +63,9 @@ Everything lives under `api/`:
 `users/search`, `admin/users` (+ approve/block/unblock/delete, `/password`, `/role`),
 `admin/storage`, `admin/stats`, `health`.
 
+Outside `api/`, `.well-known/assetlinks.json` is answered when the Android
+app's identity is configured (`ANDROID_APP_ID`, `ANDROID_CERT_SHA256`).
+
 State-changing requests must carry `X-Requested-With: ConnectWell`, a header a
 cross-origin form post cannot set — CSRF defence in depth on top of `SameSite`
 cookies.
