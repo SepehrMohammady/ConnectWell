@@ -69,19 +69,25 @@ The key file is part of `data/` and should be backed up with it. Losing it is
 not a disaster — devices re-register the next time the app is opened — but until
 then they receive nothing in the background.
 
-## The Android app
+## The apps
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | `ANDROID_APP_ID` | — | The Android app's package name, e.g. `com.example.chat`. Comma-separated to list more than one (both ids during a rename). |
 | `ANDROID_CERT_SHA256` | — | SHA-256 fingerprint of the key that signs it, as `node apps/build.mjs` prints it. Comma-separated for more than one (your own key and Google Play's). |
+| `APPS_DIR` | `data/apps` | Where your builds of the apps go to be offered to members. The install button hands Android phones the newest `.apk` here and Windows PCs the newest `.exe`; when there is none, they get the web app. |
 
-With both set, the server publishes them as Digital Asset Links at
-`<BASE_PATH>/.well-known/assetlinks.json` — the file that lets Android run the
+With both Android settings set, the server publishes them as Digital Asset Links
+at `<BASE_PATH>/.well-known/assetlinks.json` — the file that lets Android run the
 app full screen instead of as a browser tab. Android reads it from the root of
 the domain, so a deployment under a path maps that one address in its reverse
 proxy; [Apps](APPS.md#3-prove-the-android-app-belongs-to-your-domain) shows how.
-Malformed values are reported at startup and left out.
+Malformed values are reported at startup and left out. `ANDROID_APP_ID` also
+goes into the web app's manifest, which is how a phone's browser knows the app
+is already installed and stops offering it.
+
+The files in `APPS_DIR` are read on each request, so putting a new build there
+is the whole of an update. Only signed-in members can download them.
 
 ## Shared-file retention
 

@@ -164,11 +164,40 @@ Google Play with Play App Signing, add the fingerprint Play shows you
 Check it with Google's tool:
 `https://digitalassetlinks.googleapis.com/v1/statements:list?source.web.site=https://chat.example.com&relation=delegate_permission/common.handle_all_urls`
 
-### 4. Install
+### 4. Offer them from the web app
 
-**Android.** Send people the `.apk` (or put it on a page they can reach). Opening
-it asks once to allow installs from that source. Then open the app, sign in, and
-tap **Enable notifications** in the bar at the top — Android asks for permission.
+Copy the `.apk` and the `.exe` from `dist/` into the server's `data/apps/` (or
+wherever [`APPS_DIR`](CONFIGURATION.md#the-apps) points):
+
+```bash
+scp dist/ConnectWell-0.26.0.apk dist/ConnectWell-Setup-0.26.0.exe you@server:connectwell/data/apps/
+```
+
+From then on, the install button at the top of the web app's sidebar offers
+each device what suits it:
+
+| Device | The install button |
+| --- | --- |
+| Windows | downloads the Windows installer, with what to expect from SmartScreen |
+| Android | downloads the Android app; it disappears once the app is installed |
+| iPhone, iPad | shows how to add the web app to the Home Screen |
+| Anything else | installs the web app, where the browser can |
+
+Only signed-in members can download them. The newest version in the folder is
+the one offered and the folder is read on every request, so an update is a
+matter of copying the new build in — no restart. While the folder is empty,
+Windows and Android are offered the web app instead. The Android app counts as
+installed only when `ANDROID_APP_ID` is set (step 3); the Windows app cannot be
+seen from a browser, so a Windows browser keeps offering it.
+
+You can also hand the files out any other way you like.
+
+### 5. Install
+
+**Android.** Opening the `.apk` asks once to allow installs from that source
+(usually the browser it was downloaded with), and Play Protect may ask you to
+confirm an app it does not know. Then open the app, sign in, and tap **Enable
+notifications** in the bar at the top — Android asks for permission.
 
 **Windows.** Run the installer. It installs for the current user, needs no
 administrator rights, and opens the app. Because the installer is not code
@@ -212,9 +241,10 @@ background push without either you or your users signing up for anything.
 ## Updating
 
 Deploying a newer server updates what the apps show. Rebuild and redistribute
-the apps when `apps/` changes — the release notes say so. Builds take their
-version from the server's `package.json`, and the Android version code always
-increases with it, so a new APK installs over the old one.
+the apps when `apps/` changes — the release notes say so — by putting the new
+builds in `data/apps/` (step 4). Builds take their version from the server's
+`package.json`, and the Android version code always increases with it, so a new
+APK installs over the old one.
 
 ## Troubleshooting
 

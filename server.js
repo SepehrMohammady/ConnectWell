@@ -2,6 +2,7 @@
 // ConnectWell — minimal private messenger. Author: Sepehr Mohammady.
 // One Node process: static app + REST API + WebSocket hub, SQLite storage.
 
+const fs = require('node:fs');
 const path = require('node:path');
 const http = require('node:http');
 const express = require('express');
@@ -59,6 +60,21 @@ if (config.ANDROID_APP_ID.length && config.ANDROID_CERT_SHA256.length) {
         res.set('Content-Type', 'application/json');
         res.set('Cache-Control', 'public, max-age=3600');
         res.send(assetLinks);
+    });
+}
+// With an Android app, the web app's manifest names it, which lets a page ask
+// the browser whether it is installed (getInstalledRelatedApps) and stop
+// offering it. prefer_related_applications stays false, so the browser still
+// offers to install the web app itself to anyone who does not want the app.
+if (config.ANDROID_APP_ID.length) {
+    const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, 'public', 'manifest.webmanifest'), 'utf8'));
+    manifest.related_applications = config.ANDROID_APP_ID.map((id) => ({ platform: 'play', id }));
+    manifest.prefer_related_applications = false;
+    const body = Buffer.from(JSON.stringify(manifest, null, 4) + '\n');
+    app.get(B + '/manifest.webmanifest', (req, res) => {
+        res.set('Content-Type', 'application/manifest+json');
+        res.set('Cache-Control', 'no-cache');
+        res.send(body);
     });
 }
 

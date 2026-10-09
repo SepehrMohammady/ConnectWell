@@ -1,7 +1,7 @@
 {
   "name": "connectwell-desktop",
   "productName": "ConnectWell",
-  "version": "0.25.0",
+  "version": "0.26.0",
   "description": "ConnectWell for Windows: the web app in its own window, with native notifications from the tray",
   "author": "Sepehr Mohammady",
   "license": "MIT",

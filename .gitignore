@@ -24,3 +24,6 @@ apps/android/app/build/
 apps/android/local.properties
 *.jks
 *.keystore
+# One deployment's private instance folder (apps/build.mjs): its address, the
+# Android signing key and the finished builds. Never committed.
+/Private/

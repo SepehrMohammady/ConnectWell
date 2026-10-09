@@ -6,7 +6,7 @@ import { ecoOn, shrinkImage } from './eco.js';
 import {
     S, $, h, bus, net, toast, avatarEl, userName, convTitle, convOther,
     fmtTime, fmtDay, sameDay, fmtSize, fmtDur, userById, userAvatar, convAvatarSrc,
-    closeControl,
+    closeControl, svgIcon,
 } from './core.js';
 
 const MIC_SVG = 'M12 14c1.7 0 3-1.3 3-3V5c0-1.7-1.3-3-3-3S9 3.3 9 5v6c0 1.7 1.3 3 3 3zm5.3-3c0 3-2.5 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.4 2.7 6.2 6 6.7V21h2v-3.3c3.3-.5 6-3.3 6-6.7h-1.7z';
@@ -26,16 +26,6 @@ const MAX_CAPTION_LEN = 500;
 
 // Must match REACTIONS in lib/util.js exactly (the server rejects anything else).
 const REACTIONS = ['👍', '👎', '❤️', '😂', '😢', '🙏', '👏', '🎉', '😮', '😡'];
-
-function svgIcon(d, cls) {
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('viewBox', '0 0 24 24');
-    if (cls) svg.setAttribute('class', cls);
-    const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    p.setAttribute('d', d);
-    svg.append(p);
-    return svg;
-}
 
 function msgStore(convId) {
     if (!S.msgs.has(convId)) S.msgs.set(convId, { list: [], ids: new Set(), complete: false, loading: false });

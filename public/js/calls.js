@@ -98,7 +98,7 @@ function videoBudgetBps() {
 // Re-negotiating capture is what actually saves the uplink: capping the encoder
 // while still grabbing 640x360 at 24 fps makes it throw most of that away.
 async function applyCaptureProfile() {
-    if (!cur || cur.kind !== 'video') return;
+    if (!cur || !cur.camOn) return;
     const want = callEco() ? ECO_VIDEO_CAPTURE : VIDEO_CAPTURE;
     for (const track of cur.local.getVideoTracks()) {
         try { await track.applyConstraints({ ...want, facingMode: { ideal: cur.facing } }); }
@@ -157,60 +157,153 @@ async function videoInputs() {
     } catch { return []; }
 }
 
-// Cycle to the next camera without renegotiating: replaceTrack swaps the outgoing
-// track inside the existing sender, so the call never drops.
+// One camera track, in the call's capture profile, or null. The eco profile has
+// to be asked for every time: a fresh getUserMedia does not inherit anything
+// from the track it replaces.
+async function openCamera(spec) {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: { ...(callEco() ? ECO_VIDEO_CAPTURE : VIDEO_CAPTURE), ...spec },
+        });
+        return stream.getVideoTracks()[0] || null;
+    } catch { return null; }
+}
+
+// Most desktop webcams report no facingMode; anything not explicitly the rear
+// camera is treated as front-facing, which is the mirrored case.
+const facingOf = (track) => (track?.getSettings?.().facingMode === 'environment' ? 'environment' : 'user');
+
+// The sender this peer's video goes out on, once there is one. A transceiver
+// that only RECEIVES video (the other side turned their camera on first) does
+// not count: putting a track on it needs addTrack, which turns it around.
+function videoSender(pc) {
+    const tr = pc.getTransceivers().find((x) => x.receiver.track && x.receiver.track.kind === 'video'
+        && (x.direction === 'sendrecv' || x.direction === 'sendonly'));
+    return tr ? tr.sender : null;
+}
+
+// Puts `track` (or nothing) on every peer's video sender. The very first camera
+// in a voice call has no sender yet, so it is added — the one case that
+// renegotiates; every later on/off/switch is a replaceTrack and the call never
+// drops. Returns false if the call ended while it ran.
+async function sendVideo(track) {
+    for (const peer of cur.peers.values()) {
+        const sender = videoSender(peer.pc);
+        if (sender) await sender.replaceTrack(track).catch(() => { });
+        else if (track) peer.pc.addTrack(track, cur.local);
+        if (!cur) return false;
+    }
+    return true;
+}
+
+// Who should see what: the server keeps each participant's camera state, so a
+// camera turned off shows as their photo rather than a frozen black frame.
+function announceCamera() {
+    if (cur && cur.callId) net.send('call:media', { callId: cur.callId, video: cur.camOn });
+}
+
+// Switch the camera on — in a voice call this is what makes it a video call.
+async function cameraOn() {
+    const track = await openCamera({ facingMode: { ideal: cur.facing } });
+    // The call can end while getUserMedia is resolving. The new track is not in
+    // cur.local yet, so teardown() would never stop it — the camera would stay
+    // live, light and all, after the call was over.
+    if (!cur) { track?.stop(); return; }
+    if (!track) { toast(t('call.need_camera')); return; }
+    cur.local.addTrack(track);
+    cur.camOn = true;
+    cur.facing = facingOf(track);
+    if (!(await sendVideo(track))) { track.stop(); return; }
+    applyAllEncodingCaps();
+    applyCaptureProfile();
+    announceCamera();
+    refreshFlip();
+    renderGrid();
+}
+
+// Off releases the camera outright — its light goes out — instead of sending
+// black frames from a camera that is still running.
+async function cameraOff() {
+    const track = cur.local.getVideoTracks()[0];
+    cur.camOn = false;
+    await sendVideo(null);
+    if (track) { track.stop(); if (cur) cur.local.removeTrack(track); }
+    if (!cur) return;
+    announceCamera();
+    renderGrid();
+}
+
+async function toggleCamera() {
+    if (!cur || cur.camBusy) return;
+    cur.camBusy = true;
+    try {
+        if (cur.camOn) await cameraOff(); else await cameraOn();
+    } finally {
+        if (cur) cur.camBusy = false;
+    }
+}
+
+// The flip button is only offered while the camera is on and the device
+// actually has another one. Device lists are only complete once a camera
+// permission exists, which turning the camera on has just given.
+function refreshFlip() {
+    if (!cur) return;
+    $('call-flip').hidden = !(cur.camOn && cur.canFlip);
+    if (!cur.camOn || cur.canFlip !== undefined) return;
+    videoInputs().then((cams) => {
+        if (!cur) return;
+        cur.canFlip = cams.length > 1;
+        $('call-flip').hidden = !(cur.camOn && cur.canFlip);
+    });
+}
+
+// Front <-> rear, without renegotiating: replaceTrack swaps the outgoing track
+// inside the existing sender, so the call never drops.
 //
-// Cycling deviceId rather than asking for facingMode 'environment' means this
-// also works on a desktop with two webcams — and, more importantly, it cannot
-// offer a switch that then always fails, which an `exact: 'environment'`
-// constraint does on every machine whose cameras report no facing mode.
+// The current camera is RELEASED FIRST. Phones cannot run two cameras at once —
+// opening the rear one while the front is still live fails outright — which is
+// why switching used to report "no other camera" on exactly the devices that
+// have one. The cost is a moment of no picture for the others.
+//
+// The other side is asked for by facing ('environment' / 'user'), which on a
+// phone means its main camera rather than whichever lens enumerates next. A
+// desktop's webcams report no facing at all, so there the device list is cycled.
+// If nothing else opens, the previous camera comes back.
 async function switchCamera() {
-    if (!cur || cur.kind !== 'video' || cur.switching) return;
+    if (!cur || !cur.camOn || cur.switching) return;
     cur.switching = true;
     try {
         const cams = await videoInputs();
         if (!cur) return;
         if (cams.length < 2) { toast(t('call.no_other_camera')); return; }
 
-        const currentId = cur.local.getVideoTracks()[0]?.getSettings?.().deviceId;
-        const at = cams.findIndex((d) => d.deviceId === currentId);
-        const next = cams[((at < 0 ? 0 : at) + 1) % cams.length];
-
-        let stream;
-        try {
-            stream = await navigator.mediaDevices.getUserMedia({
-                audio: false,
-                // The eco profile has to be re-requested here: this is a fresh
-                // getUserMedia, so it does not inherit the current track's constraints.
-                video: {
-                    ...(callEco() ? ECO_VIDEO_CAPTURE : VIDEO_CAPTURE),
-                    deviceId: { exact: next.deviceId },
-                },
-            });
-        } catch { if (cur) toast(t('call.no_other_camera')); return; }
-
-        const track = stream.getVideoTracks()[0];
-        // The call can end while getUserMedia is resolving. The new track is not
-        // in cur.local yet, so teardown() would never stop it — the camera would
-        // stay live, light and all, after the call was over.
-        if (!cur || !track) { stream.getTracks().forEach((tr) => tr.stop()); return; }
-
         const old = cur.local.getVideoTracks()[0];
-        // Inherit the muted state: flipping must not silently start broadcasting
-        // again for someone who had turned their camera off.
-        track.enabled = old ? old.enabled : true;
+        const oldId = old?.getSettings?.().deviceId;
+        const want = cur.facing === 'environment' ? 'user' : 'environment';
+        if (old) { old.stop(); cur.local.removeTrack(old); }
 
-        for (const peer of cur.peers.values()) {
-            const sender = peer.pc.getSenders().find((s) => s.track && s.track.kind === 'video');
-            if (sender) await sender.replaceTrack(track).catch(() => { });
-            if (!cur) { track.stop(); return; }      // hung up mid-swap
+        let track = await openCamera({ facingMode: { exact: want } });
+        // Some browsers satisfy `exact` with the camera already in use when
+        // there is no other; only a different device counts as a switch.
+        if (track && oldId && track.getSettings?.().deviceId === oldId) { track.stop(); track = null; }
+        if (!track && cur) {
+            const at = cams.findIndex((d) => d.deviceId === oldId);
+            const next = cams[((at < 0 ? 0 : at) + 1) % cams.length];
+            if (next.deviceId !== oldId) track = await openCamera({ deviceId: { exact: next.deviceId } });
         }
+        let switched = true;
+        if (!track && cur) {
+            switched = false;
+            track = await openCamera(oldId ? { deviceId: { exact: oldId } } : { facingMode: { ideal: cur.facing } });
+        }
+        if (!cur) { track?.stop(); return; }
+        if (!switched) toast(t('call.no_other_camera'));
+        if (!track) { cur.camOn = false; await sendVideo(null); announceCamera(); renderGrid(); return; }
 
-        if (old) { cur.local.removeTrack(old); old.stop(); }
         cur.local.addTrack(track);
-        // Most desktop webcams report no facingMode; anything not explicitly the
-        // rear camera is treated as front-facing, which is the mirrored case.
-        cur.facing = track.getSettings?.().facingMode === 'environment' ? 'environment' : 'user';
+        cur.facing = facingOf(track);
+        if (!(await sendVideo(track))) { track.stop(); return; }
         applyAllEncodingCaps();   // replaceTrack can reset the sender's caps
         renderGrid();
     } finally {
@@ -249,9 +342,12 @@ function ensurePeer(connId, userId) {
     pc.onicecandidate = ({ candidate }) => {
         if (candidate) net.send('rtc', { callId: cur.callId, toConn: connId, data: { candidate } });
     };
-    pc.ontrack = ({ streams }) => {
+    pc.ontrack = ({ track, streams }) => {
         peer.stream = streams[0];
         attachStream(peer);
+        // A camera turned on mid-call arrives as a new track on the same stream,
+        // and the tile has to change from their photo to the picture.
+        if (track.kind === 'video') renderGrid();
     };
     pc.onconnectionstatechange = () => {
         const st = pc.connectionState;
@@ -318,11 +414,8 @@ export async function startCall(convId, kind) {
     const local = await getMedia(kind);
     if (!local) return;
     await getIce(); // load ICE config before any peer exists so ensurePeer is sync
-    cur = {
-        callId: null, convId, kind, local, peers: new Map(), timer: null,
-        startedAt: Date.now(), facing: 'user', pinLocal: false, eco: ecoOn(), ecoUsers: [],
-    };
-    net.send('call:start', { convId, kind, eco: ecoOn() });
+    cur = newCall(null, convId, kind, local);
+    net.send('call:start', { convId, kind, eco: ecoOn(), video: cur.camOn });
     showOverlay();
     ringbackStart();
 }
@@ -333,12 +426,20 @@ export async function joinCall(callId, convId, kind) {
     const local = await getMedia(kind);
     if (!local) return;
     await getIce(); // load ICE config before any peer exists so ensurePeer is sync
-    cur = {
+    cur = newCall(callId, convId, kind, local);
+    net.send('call:join', { callId, eco: ecoOn(), video: cur.camOn });
+    showOverlay();
+}
+
+// `kind` turns to 'video' once anybody's camera is on; until then a camera that
+// is off is the normal state of a voice call, not something to flag in red.
+// `media` is each participant's camera state as the server last reported it.
+function newCall(callId, convId, kind, local) {
+    return {
         callId, convId, kind, local, peers: new Map(), timer: null,
         startedAt: Date.now(), facing: 'user', pinLocal: false, eco: ecoOn(), ecoUsers: [],
+        camOn: local.getVideoTracks().length > 0, media: new Map(), canFlip: undefined,
     };
-    net.send('call:join', { callId, eco: ecoOn() });
-    showOverlay();
 }
 
 export function hangup() {
@@ -394,6 +495,13 @@ export function onCallState(d) {
         if (mine && mine.eco !== ecoOn()) {
             net.send('call:eco', { callId: cur.callId, eco: ecoOn() });
         }
+        // Whose camera is on, so a camera turned off shows that person's photo.
+        // The same re-assertion as above covers a camera turned on before the
+        // call had an id.
+        cur.media = new Map(d.participants.map((p) => [p.connId, p.video]));
+        if (mine && typeof mine.video === 'boolean' && mine.video !== cur.camOn) announceCamera();
+        // A voice call somebody has turned a camera on in is a video call now.
+        if (d.kind === 'video') cur.kind = 'video';
         renderEcoNote();
         renderGrid();
     }
@@ -486,11 +594,19 @@ function tileEl(name, { pip = false, mirror = false, muted = false, hasVideo = t
     return tile;
 }
 
+// Whether a peer's tile shows their picture: their camera is on — as the server
+// reports it; a client too old to say is assumed on in a video call — and their
+// video has actually arrived.
+function peerHasVideo(peer) {
+    const said = cur.media.get(peer.connId);
+    const cameraOn = typeof said === 'boolean' ? said : cur.kind === 'video';
+    return cameraOn && !!peer.stream && peer.stream.getVideoTracks().length > 0;
+}
+
 function renderGrid() {
     if (!cur) return;
     const grid = $('call-grid');
     grid.textContent = '';
-    const hasVideo = cur.kind === 'video';
     const peers = [...cur.peers.values()];
     // With nobody else present there is no second stream to swap with, and
     // pinning would leave no PiP to tap to get back.
@@ -502,7 +618,9 @@ function renderGrid() {
     const gridPeers = pipPeer ? peers.slice(1) : peers;
 
     for (const peer of gridPeers) {
-        peer.el = tileEl(userName(peer.userId), { hasVideo, src: userAvatar(userById(peer.userId)) });
+        peer.el = tileEl(userName(peer.userId), {
+            hasVideo: peerHasVideo(peer), src: userAvatar(userById(peer.userId)),
+        });
         grid.append(peer.el);
         attachStream(peer);
     }
@@ -511,7 +629,7 @@ function renderGrid() {
     // only for the front camera, wherever it is drawn.
     const localTile = tileEl(t('call.you'), {
         pip: !cur.pinLocal, mirror: cur.facing !== 'environment', muted: true,
-        hasVideo, src: userAvatar(S.me),
+        hasVideo: cur.camOn, src: userAvatar(S.me),
     });
     const lv = localTile.querySelector('video');
     lv.srcObject = cur.local;
@@ -531,16 +649,19 @@ function renderGrid() {
 
     if (pipPeer) {
         pipPeer.el = tileEl(userName(pipPeer.userId), {
-            pip: true, hasVideo, src: userAvatar(userById(pipPeer.userId)),
+            pip: true, hasVideo: peerHasVideo(pipPeer), src: userAvatar(userById(pipPeer.userId)),
         });
         grid.append(pipPeer.el);
         attachStream(pipPeer);
     }
     if (!cur.pinLocal) grid.append(localTile);
 
-    $('call-cam').hidden = !hasVideo;
+    // Always offered, so a voice call can become a video call. Red only where a
+    // camera being off stands out: in a call that is on video.
+    $('call-cam').hidden = false;
+    $('call-cam').classList.toggle('off', !cur.camOn && cur.kind === 'video');
     // Only offered when the device actually has another camera to switch to.
-    $('call-flip').hidden = !(hasVideo && cur.canFlip);
+    $('call-flip').hidden = !(cur.camOn && cur.canFlip);
 }
 
 // Names whoever pulled the call down to the low-bitrate profile, so the drop in
@@ -563,13 +684,7 @@ function showOverlay() {
     $('call-overlay').hidden = false;
     renderEcoNote();
     renderGrid();
-    // Device labels/count are only meaningful once permission is granted, which
-    // getMedia has just done. Re-render when the answer arrives.
-    if (cur.kind === 'video') {
-        videoInputs().then((cams) => {
-            if (cur) { cur.canFlip = cams.length > 1; $('call-flip').hidden = !cur.canFlip; }
-        });
-    }
+    refreshFlip();
     clearInterval(cur.timer);
     cur.timer = setInterval(() => {
         if (!cur) return;
@@ -609,13 +724,8 @@ export function initCalls() {
         tracks.forEach((track) => { track.enabled = on; });
         $('call-mute').classList.toggle('off', !on);
     });
-    $('call-cam').addEventListener('click', () => {
-        if (!cur) return;
-        const tracks = cur.local.getVideoTracks();
-        const on = !tracks[0]?.enabled;
-        tracks.forEach((track) => { track.enabled = on; });
-        $('call-cam').classList.toggle('off', !on);
-    });
+    // On and off — and in a voice call, the way to turn it into a video call.
+    $('call-cam').addEventListener('click', toggleCamera);
     $('call-flip').addEventListener('click', switchCamera);
 
     $('ring-accept').addEventListener('click', () => {

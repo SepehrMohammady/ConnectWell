@@ -26,6 +26,7 @@ lib/deletions.js   delete-with-consent state machine
 lib/ws.js          realtime hub and call signaling
 lib/push.js        background notifications: who is told what, in which language
 lib/webpush.js     the Web Push protocol (VAPID, aes128gcm) on node:crypto
+lib/apps.js        the app builds in APPS_DIR offered to members
 lib/util.js        hashing, validation, small helpers
 public/            the web app — index.html, app.css, js/*
 public/sw.js       service worker: installability, and showing pushed notifications
@@ -47,6 +48,7 @@ docs/              this documentation
 | `app.js` | Boot, auth, WebSocket, sidebar, modals, admin, activity. |
 | `notify.js` | Notifications on this device: permission, push registration, who shows what, activity reporting, acting on a tapped notification, the Windows app's bridge. |
 | `eco.js` | Efficiency mode: the switch, and image downscaling. |
+| `install.js` | The install button: the Windows or Android app where the server offers one, the web app anywhere else. |
 | `i18n.js` | `t()` lookup, plurals, slot interpolation. |
 | `theme.js`, `lang.js` | Resolve theme and language *before first paint*; both are blocking scripts in `<head>` for that reason. |
 
@@ -59,12 +61,13 @@ Everything lives under `api/`:
 `files/:id`, `messages/:id` (DELETE, PATCH, `/react`, `/forward`,
 `/delete-request`), `activity` (+ `/seen`), `ice`,
 `push/key`, `push/subscribe`, `push/unsubscribe`, `push/test`,
-`calls/:id/decline`,
+`calls/:id/decline`, `apps/android`, `apps/windows`,
 `users/search`, `admin/users` (+ approve/block/unblock/delete, `/password`, `/role`),
 `admin/storage`, `admin/stats`, `health`.
 
 Outside `api/`, `.well-known/assetlinks.json` is answered when the Android
-app's identity is configured (`ANDROID_APP_ID`, `ANDROID_CERT_SHA256`).
+app's identity is configured (`ANDROID_APP_ID`, `ANDROID_CERT_SHA256`), and
+the manifest then names the app under `related_applications`.
 
 State-changing requests must carry `X-Requested-With: ConnectWell`, a header a
 cross-origin form post cannot set — CSRF defence in depth on top of `SameSite`
@@ -72,7 +75,7 @@ cookies.
 
 `bootstrap` is one round trip that returns everything a fresh page load needs:
 the user, the roster, conversations, who is online, live calls, pending deletion
-requests and the activity count.
+requests, the activity count, the push key and which apps the server offers.
 
 ## WebSocket
 
@@ -84,13 +87,16 @@ Connect at `ws`. The server pushes:
 `call:state`, `call:ring`, `call:declined`, `call:ended`, `rtc`.
 
 Clients send `typing`, `call:start`, `call:join`, `call:leave`, `call:decline`,
-`call:eco`, `rtc`, and `active` — whether a person is looking at this window
-right now, with the device id that links the socket to that device's push
-registration.
+`call:eco`, `call:media`, `rtc`, and `active` — whether a person is looking at
+this window right now, with the device id that links the socket to that device's
+push registration.
 
 Calls are per-conversation rooms keyed by **connection** id rather than user id,
 so one person joining from two devices works correctly. `call:state` carries the
-call's shared efficiency verdict along with who asked for it.
+call's shared efficiency verdict along with who asked for it, and whose camera
+is on. A voice call becomes a video call when anyone turns their camera on
+(`call:media`): the track is added to the existing connections and renegotiated,
+so nobody has to hang up.
 
 ## Design decisions worth knowing
 

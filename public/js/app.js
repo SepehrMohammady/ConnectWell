@@ -4,7 +4,7 @@ import { api, postBytes } from './api.js';
 import { makeAvatar } from './avatar.js';
 import {
     S, $, h, bus, net, toast, popSound, ringStop, avatarEl, userName, convTitle, convOther,
-    fmtListTime, fmtSize, userAvatar, convAvatarSrc, closeControl,
+    fmtListTime, fmtSize, userAvatar, convAvatarSrc, closeControl, svgIcon,
 } from './core.js';
 import {
     initChat, openConv, closeConv, renderHeader, onMsgNew, onMsgDeleted, onTyping, markRead, reconcileActive,
@@ -17,8 +17,9 @@ import {
 import { t, applyStatic } from './i18n.js';
 import { ecoOn, setEco } from './eco.js';
 import { BACKGROUNDS, chatBg, setChatBg } from './bg.js';
+import { initInstall, setApps } from './install.js';
 import {
-    initNotify, registerWorker, setPushKey, syncPush, enableNotifications, notificationState,
+    initNotify, setPushKey, syncPush, enableNotifications, notificationState,
     isDesktopApp, forgetDevice, sendTest, notifyLocal, closeNotifications, setUnread,
     reportActivity, startActivityReporting, openIntents, offerNotifications,
 } from './notify.js';
@@ -163,56 +164,6 @@ function handleIntent(intent) {
     }
     if (intent.msg) { jumpToMessage(intent.conv, intent.msg); return; }
     openConv(intent.conv);
-}
-
-/* ---------------- install (PWA) ----------------
-   Chromium fires beforeinstallprompt when the app is installable and not yet
-   installed; we stash it and offer our own button, which disappears once the
-   app is installed (appinstalled, and the event simply stops firing). Browsers
-   that do not support this — notably iOS Safari — never fire the event, so the
-   button stays hidden there, which is the intended "only where supported". */
-
-let deferredInstall = null;
-
-window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferredInstall = e;
-    paintInstallBtn();
-});
-window.addEventListener('appinstalled', () => {
-    deferredInstall = null;
-    paintInstallBtn();
-});
-
-function runningStandalone() {
-    return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
-        || window.navigator.standalone === true;
-}
-
-function paintInstallBtn() {
-    const btn = $('btn-install');
-    if (btn) btn.hidden = !(deferredInstall && !runningStandalone());
-}
-
-function initInstall() {
-    // The service worker is what makes the app installable; without it the browser
-    // never offers install. A failure here is non-fatal — install just isn't shown.
-    registerWorker();
-    const btn = $('btn-install');
-    if (btn) {
-        btn.addEventListener('click', async () => {
-            if (!deferredInstall) return;
-            deferredInstall.prompt();
-            try { await deferredInstall.userChoice; } catch { /* dismissed */ }
-            // The stashed prompt is single-use, so drop it and hide the button.
-            // Chromium re-fires beforeinstallprompt on a later visit/reload if the
-            // app is still installable, which brings the button back then (not
-            // within this same page load).
-            deferredInstall = null;
-            paintInstallBtn();
-        });
-    }
-    paintInstallBtn();   // in case beforeinstallprompt fired before this ran
 }
 
 /* ---------------- activity ----------------
@@ -421,6 +372,7 @@ function applyBootstrap(data) {
     activityUnseen = data.activityUnseen || 0;
     paintActivityBadge();
     setPushKey(data.push?.key);
+    setApps(data.apps);
     if (S.activeConvId && !S.convs.has(S.activeConvId)) closeConv();
 }
 
@@ -764,6 +716,9 @@ function renderAdminBadge() {
 
 /* ---------------- modals ---------------- */
 
+// `build(modal, close, setGuard)`. A modal holding unsaved edits passes a guard,
+// asked before ✕, Escape or the backdrop close it; `close` itself always closes
+// (after saving, for instance).
 function openModal(build) {
     const root = $('modal-root');
     root.textContent = '';
@@ -773,10 +728,39 @@ function openModal(build) {
     // Three ways out, because the backdrop alone is not discoverable and on a
     // phone a tall modal barely leaves any backdrop to tap.
     let detach = () => { };
+    let guard = null;
     const close = () => { root.hidden = true; root.textContent = ''; detach(); };
-    detach = closeControl(modal, close, t('app.close'));
-    root.onclick = (e) => { if (e.target === root) close(); };
-    build(modal, close);
+    const tryClose = () => { if (!guard || guard()) close(); };
+    detach = closeControl(modal, tryClose, t('app.close'));
+    root.onclick = (e) => { if (e.target === root) tryClose(); };
+    build(modal, close, (fn) => { guard = fn; });
+}
+
+const CHECK_SVG = 'M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z';
+const CAMERA_SVG = 'M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4zM9 2 7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z';
+const TRASH_SVG = 'M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z';
+const PERSON_REMOVE_SVG = 'M14 8c0-2.21-1.79-4-4-4S6 5.79 6 8s1.79 4 4 4 4-1.79 4-4zm3 2v2h6v-2h-6zM2 18v2h16v-2c0-2.66-5.33-4-8-4s-8 1.34-8 4z';
+const PERSON_ADD_SVG = 'M14 8c0-2.21-1.79-4-4-4S6 5.79 6 8s1.79 4 4 4 4-1.79 4-4zM19 8v2h-2v2h2v2h2v-2h2v-2h-2V8h-2zM2 18v2h16v-2c0-2.66-5.33-4-8-4s-8 1.34-8 4z';
+
+// An icon-only button. The label is both its tooltip and what a screen reader
+// announces, so an icon never replaces a word for anybody who needed the word.
+function iconButton(path, label, onclick, cls = '') {
+    const b = h('button', {
+        class: 'icon-btn' + (cls ? ' ' + cls : ''), type: 'button', title: label, 'aria-label': label, onclick,
+    });
+    b.append(svgIcon(path));
+    return b;
+}
+
+// The ✓ beside a modal's ✕ that saves everything changed in it at once. It
+// stays visible but disabled while there is nothing to save, so where saving
+// happens is never a mystery.
+function saveControl(modal, label) {
+    modal.classList.add('has-save');
+    const btn = iconButton(CHECK_SVG, label, null, 'modal-save');
+    btn.disabled = true;
+    modal.append(btn);
+    return btn;
 }
 
 function userRowBtn(u, onclick) {
@@ -978,7 +962,7 @@ function newGroupModal() {
 function convInfoModal() {
     const conv = S.convs.get(S.activeConvId);
     if (!conv) return;
-    openModal((modal, close) => {
+    openModal((modal, close, setGuard) => {
         if (conv.type === 'direct') {
             const other = S.users.get(convOther(conv));
             modal.append(h('h3', { text: t('app.convInfo.directTitle') }));
@@ -1002,41 +986,68 @@ function convInfoModal() {
         }
 
         const mayManage = conv.createdBy === S.me.id || S.me.role === 'admin';
-        modal.append(h('h3', { text: conv.name }));
+        // Same rule the server enforces: the photo and the name are the group's
+        // identity, so they follow the creator-or-admin rule, and save together.
+        const saveBtn = mayManage ? saveControl(modal, t('app.profile.save')) : null;
+        const title = h('h3', { text: conv.name });
+        modal.append(title);
+        // Anything that leaves this modal for another asks first while there
+        // are edits waiting for the ✓.
+        let unsaved = () => false;
 
         if (mayManage) {
-            // Same rule the server enforces: a photo is a group-identity change,
-            // so it follows the creator-or-admin rule that renaming already uses.
-            const picker = photoPicker({
-                src: convAvatarSrc(conv),
-                name: conv.name,
-                group: true,
-                notify: (msg, bad) => toast(msg),
-                // conv:updated arrives over the socket and refreshes S.convs, the
-                // list and the header, so nothing needs patching by hand here.
-                onSave: async (blob) => convAvatarSrc(
-                    (await postBytes('api/conversations/' + conv.id + '/avatar', blob)).conversation),
-                onRemove: async () => {
-                    await api('api/conversations/' + conv.id + '/avatar', { method: 'DELETE' });
-                },
+            let savedName = conv.name;
+            const name = h('input', {
+                type: 'text', value: conv.name, maxlength: '50', placeholder: t('app.newGroup.namePlaceholder'),
             });
-            modal.append(h('div', { class: 'profile-head' }, [picker.holder]));
-            modal.append(picker.actions);
+            const nameDirty = () => name.value.trim() !== savedName;
+            let picker = null;
+            const dirty = () => nameDirty() || picker.dirty();
+            const refresh = () => { saveBtn.disabled = !dirty(); };
+            picker = photoPicker({
+                src: convAvatarSrc(conv), name: conv.name, group: true,
+                notify: (msg) => toast(msg), onChange: refresh,
+            });
+            // conv:updated arrives over the socket and refreshes S.convs, the list
+            // and the header, so nothing outside this modal needs patching here.
+            saveBtn.onclick = async () => {
+                if (!dirty()) return;
+                saveBtn.disabled = true;
+                try {
+                    if (nameDirty()) {
+                        await api('api/conversations/' + conv.id, { method: 'PATCH', body: { name: name.value } });
+                        savedName = name.value.trim();
+                        name.value = savedName;
+                        title.textContent = savedName;
+                    }
+                    await picker.commit({
+                        upload: async (blob) => convAvatarSrc(
+                            (await postBytes('api/conversations/' + conv.id + '/avatar', blob)).conversation),
+                        remove: async () => { await api('api/conversations/' + conv.id + '/avatar', { method: 'DELETE' }); },
+                    });
+                    toast(t('app.profile.saved'));
+                } catch (e) { toast(e.message); }
+                refresh();
+            };
+            name.addEventListener('input', refresh);
+            name.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveBtn.click(); });
+            unsaved = dirty;
+            setGuard(() => !dirty() || confirm(t('app.profile.unsaved')));
 
-            const name = h('input', { type: 'text', value: conv.name, maxlength: '50' });
-            const save = h('button', {
-                class: 'btn small ghost', type: 'button', text: t('app.convInfo.rename'),
-                onclick: async () => {
-                    try { await api('api/conversations/' + conv.id, { method: 'PATCH', body: { name: name.value } }); close(); }
-                    catch (e) { toast(e.message); }
-                },
-            });
-            const r = h('div', { class: 'modal-row' });
-            r.append(name, save);
-            modal.append(r);
+            // The name beside the photo: the two are the group's identity.
+            modal.append(h('div', { class: 'profile-head group-head' }, [picker.el, name]));
         }
 
-        modal.append(h('p', { class: 'muted', text: t('app.convInfo.memberCount', { n: conv.members.length }) }));
+        // The count, with the way to add to it at the trailing edge, in the same
+        // column as the remove buttons on the rows below.
+        const count = h('p', { class: 'muted', text: t('app.convInfo.memberCount', { n: conv.members.length }) });
+        modal.append(h('div', { class: 'members-head' }, [
+            count,
+            iconButton(PERSON_ADD_SVG, t('app.convInfo.addMember'), () => {
+                if (unsaved() && !confirm(t('app.profile.unsaved'))) return;
+                addMemberModal(conv);
+            }),
+        ]));
         const list = h('div', { class: 'list' });
         modal.append(list);
         for (const uid of conv.members) {
@@ -1051,29 +1062,24 @@ function convInfoModal() {
                 h('div', { class: 'u-sub', text: u ? '@' + u.username : '' }),
             ]));
             if (mayManage && uid !== S.me.id) {
-                row.append(h('button', {
-                    class: 'btn small ghost', type: 'button', text: t('app.convInfo.removeMember'),
-                    onclick: async () => {
-                        try { await api('api/conversations/' + conv.id + '/members/' + uid, { method: 'DELETE' }); close(); }
-                        catch (e) { toast(e.message); }
-                    },
-                }));
+                // A bare icon is easier to hit by accident than a labelled button,
+                // so it asks first.
+                // The modal stays open, so several can go in a row and an edit
+                // waiting for the ✓ is not thrown away.
+                row.append(iconButton(PERSON_REMOVE_SVG, t('app.convInfo.removeMember'), async () => {
+                    if (!confirm(t('app.convInfo.removeConfirm', { name: who }))) return;
+                    try {
+                        await api('api/conversations/' + conv.id + '/members/' + uid, { method: 'DELETE' });
+                        row.remove();
+                        count.textContent = t('app.convInfo.memberCount', { n: list.children.length });
+                    } catch (e) { toast(e.message); }
+                }, 'danger-icon'));
             }
             list.append(row);
         }
 
-        {
-            // A styled button opening the same searchable people list used to
-            // start a chat, rather than a raw <select> the browser skins itself.
-            const r = h('div', { class: 'modal-row' });
-            r.append(h('button', {
-                class: 'btn small', type: 'button', text: t('app.convInfo.addMember'),
-                onclick: () => addMemberModal(conv),
-            }));
-            r.append(h('div', { class: 'rec-spacer' }));
-            modal.append(r);
-        }
-
+        // Leaving keeps its words: it is the one step here that cannot be undone
+        // from inside the group.
         const r2 = h('div', { class: 'modal-row' });
         r2.append(h('div', { class: 'rec-spacer' }));
         r2.append(h('button', {
@@ -1143,27 +1149,41 @@ function languageSeg(notify) {
 
 /* ---------------- photo picker ---------------- */
 
-// Shared by the profile and group-info modals. The preview renders the OUTPUT
-// blob rather than the chosen file, so what you see is byte-identical to what
-// gets stored — which is what makes a bad crop or a sideways phone photo obvious
-// before it is saved.
-function photoPicker({ src, name, group = false, onSave, onRemove, notify }) {
-    let shownSrc = src;
+// The photo half of the profile and group-info forms. Choosing a photo, or
+// removing the one there is, is only a PENDING change until the form's ✓ saves
+// it together with everything else — one way to commit, not three.
+//
+// The preview renders the OUTPUT blob rather than the chosen file, so what you
+// see is byte-identical to what gets stored — which is what makes a bad crop or
+// a sideways phone photo obvious before it is saved.
+function photoPicker({ src, name, group = false, onChange, notify }) {
+    let storedSrc = src;
     let previewUrl = null;
-    let pending = null;
+    let pending = null;      // a new photo, ready to upload
+    let removing = false;    // the stored photo is to go
 
     const holder = h('div', { class: 'photo-holder' });
-    const paint = () => {
-        holder.textContent = '';
-        holder.append(avatarEl(name, { size: 'big', group, src: previewUrl || shownSrc, zoom: true }));
-    };
+    const shown = () => (removing ? null : previewUrl || storedSrc);
     const clearPreview = () => {
         if (previewUrl) URL.revokeObjectURL(previewUrl);
         previewUrl = null;
     };
-    paint();
 
     const input = h('input', { type: 'file', accept: 'image/*', hidden: 'hidden' });
+    const chooseBtn = iconButton(CAMERA_SVG, t('app.photo.choose'), () => input.click(), 'photo-pick');
+    const removeBtn = iconButton(TRASH_SVG, t('app.photo.removeTitle'), () => {
+        pending = null;
+        clearPreview();
+        removing = !!storedSrc;
+        paint();
+        onChange();
+    }, 'danger-icon');
+    const paint = () => {
+        holder.textContent = '';
+        holder.append(avatarEl(name, { size: 'big', group, src: shown(), zoom: true }));
+        // Nothing to remove once there is no photo.
+        removeBtn.hidden = !shown();
+    };
     input.addEventListener('change', async () => {
         const file = input.files && input.files[0];
         input.value = '';                       // so the same file can be chosen twice
@@ -1172,68 +1192,52 @@ function photoPicker({ src, name, group = false, onSave, onRemove, notify }) {
             pending = await makeAvatar(file);
             clearPreview();
             previewUrl = URL.createObjectURL(pending);
+            removing = false;
             paint();
-            notify(t('app.photo.previewReady'));
+            onChange();
         } catch (err) { notify(err.message, true); }
     });
+    paint();
 
-    const busy = (fn) => async (e) => {
-        const btn = e.currentTarget;
-        btn.disabled = true;
-        try { await fn(); } catch (err) { notify(err.message, true); }
-        btn.disabled = false;
+    return {
+        // The photo, with the camera and the bin on its lower corners.
+        el: h('div', { class: 'photo-wrap' }, [
+            holder,
+            h('div', { class: 'photo-actions' }, [input, chooseBtn, removeBtn]),
+        ]),
+        dirty: () => !!pending || removing,
+        // Applies the pending change: `upload(blob)` resolves to the new src.
+        async commit({ upload, remove }) {
+            if (pending) storedSrc = await upload(pending);
+            else if (removing) { await remove(); storedSrc = null; }
+            pending = null;
+            removing = false;
+            clearPreview();
+            paint();
+        },
     };
-
-    const actions = h('div', { class: 'photo-actions' }, [
-        input,
-        h('button', { class: 'btn small ghost', type: 'button', text: t('app.photo.choose'), onclick: () => input.click() }),
-        h('button', {
-            class: 'btn small', type: 'button', text: t('app.photo.save'),
-            onclick: busy(async () => {
-                if (!pending) return notify(t('app.photo.chooseFirst'), true);
-                const next = await onSave(pending);
-                pending = null;
-                clearPreview();
-                shownSrc = next || null;
-                paint();
-                notify(t('app.photo.updated'));
-            }),
-        }),
-        h('button', {
-            class: 'btn small ghost', type: 'button', text: t('app.photo.remove'),
-            onclick: busy(async () => {
-                await onRemove();
-                pending = null;
-                clearPreview();
-                shownSrc = null;
-                paint();
-                notify(t('app.photo.removed'));
-            }),
-        }),
-    ]);
-
-    return { holder, actions, dispose: clearPreview };
 }
 
 /* ---------------- profile ---------------- */
 
 function profileModal() {
-    openModal((modal, close) => {
+    openModal((modal, close, setGuard) => {
+        const saveBtn = saveControl(modal, t('app.profile.save'));
         modal.append(h('h3', { text: t('app.profile.title') }));
 
-        const note = h('p', { class: 'form-note', hidden: 'hidden' });
-        const say = (text, bad = false) => {
-            note.textContent = text;
-            note.className = 'form-note' + (bad ? ' bad' : ' ok');
-            note.hidden = false;
+        // Two notes, each beside what it reports on: one under the name for the
+        // saved photo and name, one further down for the device settings and the
+        // password — a modal this long would scroll a single one out of sight.
+        const noteEl = () => h('p', { class: 'form-note', hidden: 'hidden' });
+        const sayIn = (el) => (text, bad = false) => {
+            el.textContent = text;
+            el.className = 'form-note' + (bad ? ' bad' : ' ok');
+            el.hidden = false;
         };
-        // Keeps a click from firing twice while the request is in flight.
-        const guard = (fn) => async (e) => {
-            const btn = e.currentTarget;
-            btn.disabled = true;
-            try { await fn(); } catch (err) { say(err.message, true); }
-            btn.disabled = false;
-        };
+        const idNote = noteEl();
+        const sayId = sayIn(idNote);
+        const note = noteEl();
+        const say = sayIn(note);
 
         // Both S.me and the S.users copy are refreshed: they are separate objects,
         // and lookups elsewhere go through S.users.
@@ -1245,37 +1249,70 @@ function profileModal() {
             renderHeader();
             return userAvatar(user);
         };
-        const picker = photoPicker({
-            src: userAvatar(S.me),
-            name: S.me.displayName,
-            notify: say,
-            onSave: async (blob) => applyMe((await postBytes('api/me/avatar', blob)).user),
-            onRemove: async () => { applyMe((await api('api/me/avatar', { method: 'DELETE' })).user); },
+        // The photo, the display name and the password are this account's, on
+        // every device, so they wait for the ✓. Everything between them is a
+        // preference of this device and applies the moment it is chosen.
+        const nameInput = h('input', { type: 'text', value: S.me.displayName, maxlength: '50' });
+        const nameDirty = () => nameInput.value.trim() !== S.me.displayName;
+        const curPw = h('input', { type: 'password', placeholder: t('app.profile.currentPassword'), autocomplete: 'current-password' });
+        const newPw = h('input', { type: 'password', placeholder: t('app.profile.newPassword'), autocomplete: 'new-password' });
+        // Only the new password counts as a change: a password manager may fill
+        // the current one in by itself, which must not light up the ✓.
+        const pwDirty = () => newPw.value !== '';
+        let picker = null;
+        const dirty = () => nameDirty() || picker.dirty() || pwDirty();
+        const refresh = () => { saveBtn.disabled = !dirty(); };
+        picker = photoPicker({
+            src: userAvatar(S.me), name: S.me.displayName, notify: sayId, onChange: refresh,
         });
+        const headName = h('div', { class: 'u-name', text: S.me.displayName });
+
+        // Each half reports beside itself, and a wrong current password does
+        // not hold back a new name, nor the other way round.
+        saveBtn.onclick = async () => {
+            if (!dirty()) return;
+            saveBtn.disabled = true;
+            if (nameDirty() || picker.dirty()) {
+                try {
+                    if (nameDirty()) {
+                        applyMe((await api('api/me', { method: 'PATCH', body: { displayName: nameInput.value } })).user);
+                    }
+                    await picker.commit({
+                        upload: async (blob) => applyMe((await postBytes('api/me/avatar', blob)).user),
+                        remove: async () => { applyMe((await api('api/me/avatar', { method: 'DELETE' })).user); },
+                    });
+                    nameInput.value = S.me.displayName;
+                    headName.textContent = S.me.displayName;
+                    sayId(t('app.profile.saved'));
+                } catch (err) { sayId(err.message, true); }
+            }
+            if (pwDirty()) {
+                try {
+                    await api('api/me/password', {
+                        method: 'POST',
+                        body: { currentPassword: curPw.value, newPassword: newPw.value },
+                    });
+                    curPw.value = '';
+                    newPw.value = '';
+                    say(t('app.profile.passwordUpdated'));
+                } catch (err) { say(err.message, true); }
+            }
+            refresh();
+        };
+        for (const input of [nameInput, curPw, newPw]) {
+            input.addEventListener('input', refresh);
+            input.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveBtn.click(); });
+        }
+        setGuard(() => !dirty() || confirm(t('app.profile.unsaved')));
 
         modal.append(h('div', { class: 'profile-head' }, [
-            picker.holder,
-            h('div', {}, [
-                h('div', { class: 'u-name', text: S.me.displayName }),
-                h('div', { class: 'u-sub', text: '@' + S.me.username }),
-            ]),
+            picker.el,
+            h('div', {}, [headName, h('div', { class: 'u-sub', text: '@' + S.me.username })]),
         ]));
-        modal.append(picker.actions);
 
         /* display name */
         modal.append(h('label', { class: 'field-label', text: t('app.profile.displayName') }));
-        const nameInput = h('input', { type: 'text', value: S.me.displayName, maxlength: '50' });
-        modal.append(nameInput, h('button', {
-            class: 'btn small', type: 'button', text: t('app.profile.saveName'),
-            onclick: guard(async () => {
-                const { user } = await api('api/me', { method: 'PATCH', body: { displayName: nameInput.value } });
-                S.me = user;
-                renderMe();
-                renderConvList();
-                renderHeader();
-                say(t('app.profile.nameUpdated'));
-            }),
-        }));
+        modal.append(nameInput, idNote);
 
         /* theme */
         modal.append(h('label', { class: 'field-label', text: t('app.profile.theme') }));
@@ -1329,35 +1366,13 @@ function profileModal() {
         modal.append(h('label', { class: 'field-label', text: t('app.notif.label') }));
         modal.append(notifSection());
 
-        /* password */
+        /* password — saved by the same ✓ */
         modal.append(h('label', { class: 'field-label', text: t('app.profile.changePassword') }));
-        const curPw = h('input', { type: 'password', placeholder: t('app.profile.currentPassword'), autocomplete: 'current-password' });
-        const newPw = h('input', { type: 'password', placeholder: t('app.profile.newPassword'), autocomplete: 'new-password' });
-        modal.append(curPw, newPw, h('button', {
-            class: 'btn small', type: 'button', text: t('app.profile.updatePassword'),
-            onclick: guard(async () => {
-                await api('api/me/password', {
-                    method: 'POST',
-                    body: { currentPassword: curPw.value, newPassword: newPw.value },
-                });
-                curPw.value = '';
-                newPw.value = '';
-                say(t('app.profile.passwordUpdated'));
-            }),
-        }));
+        modal.append(curPw, newPw, note);
 
         /* storage — permanent copy, since the composer strip is dismissible */
         modal.append(h('label', { class: 'field-label', text: t('app.profile.storage') }));
         modal.append(h('p', { class: 'field-hint', text: t('app.profile.storageHint') }));
-
-        modal.append(note);
-        modal.append(h('div', { class: 'modal-row' }, [
-            h('div', { class: 'rec-spacer' }),
-            h('button', {
-                class: 'btn small ghost', type: 'button', text: t('app.profile.close'),
-                onclick: () => { picker.dispose(); close(); },
-            }),
-        ]));
     });
 }
 
@@ -1730,7 +1745,7 @@ $('btn-pending-logout').addEventListener('click', async () => {
 applyStatic();
 initTheme();
 initAuthLanguage();
-initInstall();
+initInstall(openModal);
 // Before boot, so a notification tap that opened the app survives the sign-in.
 initNotify();
 initFooter();

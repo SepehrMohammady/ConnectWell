@@ -253,6 +253,7 @@ function android(dir) {
     fs.copyFileSync(path.join(project, 'app', 'build', 'outputs', 'apk', 'release', 'app-release.apk'), apk);
     fs.copyFileSync(path.join(project, 'app', 'build', 'outputs', 'bundle', 'release', 'app-release.aab'), aab);
     console.log(`\n✓ ${apk}\n✓ ${aab}`);
+    console.log("  Copy the .apk into the server's data/apps/ and the install button offers it (docs/APPS.md).");
     assetlinks(dir);
 }
 
@@ -278,6 +279,7 @@ function desktop(dir) {
     const target = path.join(dir, 'dist', `ConnectWell-Setup-${version}.exe`);
     fs.copyFileSync(setup, target);
     console.log(`\n✓ ${target}`);
+    console.log("  Copy it into the server's data/apps/ and the install button offers it (docs/APPS.md).");
 }
 
 /* ---------------- main ---------------- */

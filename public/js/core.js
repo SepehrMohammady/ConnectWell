@@ -48,6 +48,18 @@ export function h(tag, props = {}, children = []) {
     return el;
 }
 
+// A 24x24 icon from a single path. `cls` adds a class — 'ic-dir' marks a glyph
+// that must mirror under right-to-left.
+export function svgIcon(d, cls) {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    if (cls) svg.setAttribute('class', cls);
+    const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    p.setAttribute('d', d);
+    svg.append(p);
+    return svg;
+}
+
 /* ---------------- formatting ---------------- */
 
 /* The locale is resolved once before first paint and cannot change without a

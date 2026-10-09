@@ -67,7 +67,9 @@ straight to the message it is about.
 
 📱 **Apps for Android and Windows** — your instance, as an installed app with its
 own icon, that rings for calls and lives in the tray. Built from this repository
-for your own server, with nobody's account to sign up for.
+for your own server, with nobody's account to sign up for, and handed to each
+member by the install button: the Windows app on a PC, the Android app on a
+phone, the web app everywhere else.
 
 🙈 **Second thoughts allowed** — edit or delete a message freely until the other
 person has read it. After that, deleting it needs their agreement.

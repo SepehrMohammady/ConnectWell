@@ -54,6 +54,25 @@ const BASELINE_REF = (() => {
 // to trace to. Adding a key here is a deliberate act — it is the only way to
 // bypass the check, so keep the reason honest.
 const NEW_SINCE_BASELINE = {
+    'app.install.title': 'install by device: the Windows or Android app, else the web app (0.26.0)',
+    'app.install.windowsTitle': 'install by device: the Windows or Android app, else the web app (0.26.0)',
+    'app.install.androidTitle': 'install by device: the Windows or Android app, else the web app (0.26.0)',
+    'app.install.windowsBody': 'install by device: the Windows or Android app, else the web app (0.26.0)',
+    'app.install.androidBody': 'install by device: the Windows or Android app, else the web app (0.26.0)',
+    'app.install.download': 'install by device: the Windows or Android app, else the web app (0.26.0)',
+    'app.install.meta': 'install by device: the Windows or Android app, else the web app (0.26.0)',
+    'app.install.windowsNote': 'install by device: the Windows or Android app, else the web app (0.26.0)',
+    'app.install.androidNote': 'install by device: the Windows or Android app, else the web app (0.26.0)',
+    'app.install.iosShare': 'install by device: the Windows or Android app, else the web app (0.26.0)',
+    'app.install.iosAdd': 'install by device: the Windows or Android app, else the web app (0.26.0)',
+    'app.install.iosNote': 'install by device: the Windows or Android app, else the web app (0.26.0)',
+    'app.install.macSteps': 'install by device: the Windows or Android app, else the web app (0.26.0)',
+    'app.photo.removeTitle': 'one save for profile and group, icons, video mid-call (0.26.0)',
+    'app.profile.save': 'one save for profile and group, icons, video mid-call (0.26.0)',
+    'app.profile.saved': 'one save for profile and group, icons, video mid-call (0.26.0)',
+    'app.profile.unsaved': 'one save for profile and group, icons, video mid-call (0.26.0)',
+    'app.convInfo.removeConfirm': 'one save for profile and group, icons, video mid-call (0.26.0)',
+    'call.need_camera': 'one save for profile and group, icons, video mid-call (0.26.0)',
     'app.notif.background': 'background notifications and the apps (0.24.0)',
     'app.notif.foregroundOnly': 'background notifications and the apps (0.24.0)',
     'app.notif.desktop': 'background notifications and the apps (0.24.0)',
@@ -222,7 +241,7 @@ for (const m of en.matchAll(/^\s{4}"((?:[^"\\]|\\.)*)":\s*"((?:[^"\\]|\\.)*)",$/
     dict[JSON.parse('"' + m[1] + '"')] = JSON.parse('"' + m[2] + '"');
 }
 
-const JS = ['app', 'core', 'chat', 'calls', 'avatar', 'notify'].map((f) => 'public/js/' + f + '.js');
+const JS = ['app', 'core', 'chat', 'calls', 'avatar', 'notify', 'install'].map((f) => 'public/js/' + f + '.js');
 let fail = 0;
 const ok = (l) => console.log('  PASS ' + l);
 const bad = (l, d) => { fail++; console.log('  FAIL ' + l + (d ? '\n        ' + d : '')); };

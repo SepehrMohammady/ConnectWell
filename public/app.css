@@ -685,8 +685,34 @@ body { height: 100dvh; display: flex; flex-direction: column; }
 /* ---------------- profile / form fields ---------------- */
 
 .profile-head { display: flex; align-items: center; gap: .9rem; margin-bottom: .4rem; }
-.photo-holder { display: flex; flex: none; }
-.photo-actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .8rem; }
+/* The camera and the bin sit on the photo's lower corners, as phone apps put
+   them, rather than on a row of their own that read as detached from it. The
+   ring in the modal's colour sets each apart from the photo underneath. The
+   camera takes the trailing corner on both sides of a right-to-left switch. */
+.photo-wrap { position: relative; display: flex; flex: none; margin-bottom: 6px; }
+.photo-holder { display: flex; }
+.photo-actions {
+    position: absolute; inset-inline: -8px; bottom: -6px;
+    display: flex; flex-direction: row-reverse; justify-content: space-between;
+    pointer-events: none;
+}
+.photo-actions .icon-btn {
+    pointer-events: auto;
+    width: 30px; height: 30px; border-radius: 50%;
+    background: var(--panel-3); color: var(--text);
+    box-shadow: 0 0 0 3px var(--panel);
+}
+.photo-actions .icon-btn svg { width: 16px; height: 16px; }
+.photo-actions .photo-pick { background: var(--accent); color: var(--on-accent); }
+@media (hover: hover) { .photo-actions .photo-pick:hover { background: var(--accent-deep); color: var(--on-accent); } }
+/* The group's name field beside its photo. */
+.group-head { margin-bottom: 1rem; }
+.modal .group-head input[type="text"] { flex: 1; min-width: 0; margin-bottom: 0; }
+/* The member count, its add button lined up with the rows' remove buttons. */
+.members-head {
+    display: flex; align-items: center; justify-content: space-between; gap: .6rem;
+    padding-inline-end: .4rem;
+}
 
 .field-label {
     display: block; margin: 1.4rem 0 .5rem;
@@ -694,7 +720,7 @@ body { height: 100dvh; display: flex; flex-direction: column; }
     text-transform: uppercase; letter-spacing: .05em;
 }
 /* the first section under the photo needs no extra top gap */
-.profile-head + .photo-actions + .field-label { margin-top: 1rem; }
+.profile-head + .field-label { margin-top: 1rem; }
 
 /* segmented control (theme picker) */
 .seg { display: flex; background: var(--panel-2); border-radius: 12px; padding: 4px; }
@@ -904,6 +930,34 @@ body { height: 100dvh; display: flex; flex-direction: column; }
 @media (hover: hover) { .modal-close:hover { background: var(--panel-3); color: var(--text); } }
 /* Keeps a heading from running underneath the button. */
 .modal h3 { padding-inline-end: 2.2rem; }
+
+/* The ✓ that saves a form's changes, beside the ✕ and sticky for the same
+   reason. Disabled — muted — until something has changed; then it takes the
+   accent, which is the cue that there is something to save. */
+.icon-btn.modal-save {
+    position: sticky; top: 0; align-self: flex-end;
+    margin-block-end: -32px; margin-inline-end: 38px;
+    width: 32px; height: 32px; border-radius: 9px; z-index: 3;
+    background: var(--accent); color: var(--on-accent);
+}
+.icon-btn.modal-save svg { width: 20px; height: 20px; }
+/* Only the mark dims: the button itself stays opaque, like the ✕. */
+.icon-btn.modal-save:disabled { background: var(--panel); color: var(--muted); cursor: default; }
+.icon-btn.modal-save:disabled svg { opacity: .55; }
+@media (hover: hover) { .icon-btn.modal-save:not(:disabled):hover { background: var(--accent-deep); color: var(--on-accent); } }
+.modal.has-save h3 { padding-inline-end: 4.6rem; }
+
+/* A destructive icon button warns on hover rather than all the time. */
+@media (hover: hover) { .icon-btn.danger-icon:hover { color: var(--danger); background: var(--danger-tint); } }
+
+/* ---------------- installing the app ---------------- */
+a.btn { text-decoration: none; }
+.install-text { line-height: 1.5; margin-bottom: 1rem; }
+.install-row { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem 1rem; margin-bottom: .9rem; }
+.install-row .muted { font-size: .85rem; }
+.install-steps { list-style: none; display: flex; flex-direction: column; gap: .8rem; margin-bottom: 1rem; }
+.install-steps li { display: flex; align-items: center; gap: .8rem; line-height: 1.4; }
+.install-steps svg { width: 24px; height: 24px; flex: none; fill: var(--accent); }
 
 /* ---------------- a photo can be opened full size ---------------- */
 .avatar.zoomable { cursor: zoom-in; }
