@@ -17,7 +17,7 @@ Every value has a working default. The only one a real deployment must set is
 | `PORT` | `3010` | Port to listen on. |
 | `HOST` | `127.0.0.1` | Address to bind. Keep it on loopback and let a reverse proxy be the only public listener. |
 | `BASE_PATH` | `/connectwell` | URL prefix the app is served under. Empty serves it at the domain root. |
-| `PUBLIC_ORIGIN` | `http://127.0.0.1:<PORT>` | **The address your users actually type**, e.g. `https://chat.example.com`. Gates the allowed WebSocket origins and the CSP — wrong here means the page loads and realtime silently dies. |
+| `PUBLIC_ORIGIN` | `http://127.0.0.1:<PORT>` | **The address your users actually type**, e.g. `https://chat.example.com`. Gates the allowed WebSocket origins and the CSP. If it is wrong, the page loads and realtime silently dies. |
 | `PROD` | off | `1` turns on production behaviour, notably `Secure` cookies. Set it with a real HTTPS origin. |
 | `BRAND` | `ConnectWell` | The name shown in the footer beside the copyright. Put your own here. |
 | `DATA_DIR` | `data` | Where the database, uploads and avatars live. The only directory to back up. |
@@ -36,8 +36,8 @@ Every value has a working default. The only one a real deployment must set is
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | `STUN_URLS` | Google's public STUN | Comma-separated STUN servers, used to discover a direct path between devices. |
-| `TURN_HOST` | — | Hostname of a TURN relay, for networks where no direct path exists. |
-| `TURN_SECRET` | — | Shared secret the app signs short-lived TURN credentials with. Generate it on the server; never commit it. |
+| `TURN_HOST` | none | Hostname of a TURN relay, for networks where no direct path exists. |
+| `TURN_SECRET` | none | Shared secret the app signs short-lived TURN credentials with. Generate it on the server; never commit it. |
 | `TURN_TTL` | `3600` | Lifetime in seconds of an issued TURN credential. |
 
 Setting up the relay itself is covered in the
@@ -45,8 +45,8 @@ Setting up the relay itself is covered in the
 
 ## Background notifications
 
-Notifications that reach a device while ConnectWell is closed — in the Android
-and Windows apps, and in browsers that support it — are on by default and need
+Notifications that reach a device while ConnectWell is closed, in the Android
+and Windows apps and in browsers that support them, are on by default and need
 no setup. On first start the server generates its own key pair into
 `data/push-vapid.json`; that is the whole configuration. See
 [Apps](APPS.md#how-notifications-work) for what is notified, and to whom.
@@ -66,19 +66,19 @@ Android (`fcm.googleapis.com`), Edge (`notify.windows.com`), Firefox
 you know a browser your users run delivers through it.
 
 The key file is part of `data/` and should be backed up with it. Losing it is
-not a disaster — devices re-register the next time the app is opened — but until
-then they receive nothing in the background.
+not a disaster, since devices register again the next time the app is opened,
+but until then they receive nothing in the background.
 
 ## The apps
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `ANDROID_APP_ID` | — | The Android app's package name, e.g. `com.example.chat`. Comma-separated to list more than one (both ids during a rename). |
-| `ANDROID_CERT_SHA256` | — | SHA-256 fingerprint of the key that signs it, as `node apps/build.mjs` prints it. Comma-separated for more than one (your own key and Google Play's). |
+| `ANDROID_APP_ID` | none | The Android app's package name, e.g. `com.example.chat`. Comma-separated to list more than one (both ids during a rename). |
+| `ANDROID_CERT_SHA256` | none | SHA-256 fingerprint of the key that signs it, as `node apps/build.mjs` prints it. Comma-separated for more than one (your own key and Google Play's). |
 | `APPS_DIR` | `data/apps` | Where your builds of the apps go to be offered to members. The install button hands Android phones the newest `.apk` here and Windows PCs the newest `.exe`; when there is none, they get the web app. |
 
 With both Android settings set, the server publishes them as Digital Asset Links
-at `<BASE_PATH>/.well-known/assetlinks.json` — the file that lets Android run the
+at `<BASE_PATH>/.well-known/assetlinks.json`. That file lets Android run the
 app full screen instead of as a browser tab. Android reads it from the root of
 the domain, so a deployment under a path maps that one address in its reverse
 proxy; [Apps](APPS.md#3-prove-the-android-app-belongs-to-your-domain) shows how.
@@ -93,7 +93,7 @@ is the whole of an update. Only signed-in members can download them.
 
 Chat uploads in `data/uploads` can be reclaimed automatically by two independent
 rules. Profile and group photos live in `data/avatars` and are **never**
-eligible — the sweep does not know that path exists.
+eligible: the sweep does not know that path exists.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
@@ -106,10 +106,10 @@ eligible — the sweep does not know that path exists.
 
 **Deletion is off by default, deliberately.** With `PURGE_ENABLED` unset the
 sweep still runs, measures, and records everything it *would* remove to
-`data/purge-log.jsonl` — changing nothing. Read that log, and
+`data/purge-log.jsonl`, and changes nothing. Read that log, and
 `GET api/admin/storage`, before switching it on.
 
-Anything nonsensical — thresholds swapped, zero, or unparseable — disables
+Anything nonsensical (thresholds swapped, zero, or unparseable) disables
 purging entirely rather than being clamped, because a misread threshold must
 never be interpreted as "delete until the list is empty".
 

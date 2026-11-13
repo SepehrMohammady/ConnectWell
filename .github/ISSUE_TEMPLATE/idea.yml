@@ -1,0 +1,11 @@
+name: Idea
+description: Something ConnectWell could do, or do better.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: The idea
+      description: What you'd like ConnectWell to do, and when it would help you.
+    validations:
+      required: true

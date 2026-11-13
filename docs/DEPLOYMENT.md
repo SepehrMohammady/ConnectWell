@@ -5,7 +5,7 @@ something to keep it running, backups, and calls that connect on awkward
 networks.
 
 The shape below is one that works and is what the bundled scripts assume.
-Nothing in the app depends on it — if you prefer systemd, Docker, Caddy or
+Nothing in the app depends on it: if you prefer systemd, Docker, Caddy or
 anything else, only step 4 changes.
 
 The app listens on `127.0.0.1:3010` as an unprivileged user, and a reverse proxy
@@ -38,8 +38,8 @@ BRAND=Your Name
 `PUBLIC_ORIGIN` is the one setting a real deployment must get right. It gates
 the allowed WebSocket origins and the Content-Security-Policy, so if it does not
 match the address people actually type, the page will load and then quietly fail
-to receive anything. Every other setting has a working default —
-see [Configuration](CONFIGURATION.md).
+to receive anything. Every other setting has a working default; see
+[Configuration](CONFIGURATION.md).
 
 **Register your own account immediately**, before sharing the address: the first
 account created becomes the administrator.
@@ -49,8 +49,8 @@ account created becomes the administrator.
 With systemd, a unit that runs `node server.js` in the app directory is all you
 need.
 
-Without root, cron plus the bundled watchdog does the job — it starts the app if
-it is not running, and every minute is often enough:
+Without root, cron and the bundled watchdog do the job. The watchdog starts the
+app if it is not running, and every minute is often enough:
 
 ```cron
 @reboot   bash $HOME/apps/connectwell/deploy/watchdog.sh
@@ -72,8 +72,8 @@ Whatever proxy you use, it must:
 - pass WebSocket upgrades (`Upgrade` / `Connection` headers), or nothing
   realtime works;
 - allow a request body at least as large as `MAX_UPLOAD_MB`;
-- allow long-lived connections — a short `proxy_read_timeout` will cut the
-  WebSocket repeatedly.
+- allow long-lived connections, since a short `proxy_read_timeout` cuts the
+  WebSocket again and again.
 
 **One origin only.** The app pins a single origin. If your site also answers on
 `www.`, redirect `www` to the apex for the app's path, or visitors arriving on
@@ -98,13 +98,13 @@ and kills your own session along with the app.
 Background notifications need nothing configured: the server generates its own
 key on first start and delivers through the browsers' push services, so it only
 needs to be able to make outgoing HTTPS requests. The Android and Windows apps
-are built from this repository for your server — see [Apps](APPS.md), including
-the one file (`/.well-known/assetlinks.json`) your domain serves for the Android
-app.
+are built from this repository for your server. [Apps](APPS.md) explains how,
+including the one file (`/.well-known/assetlinks.json`) your domain serves for
+the Android app.
 
 ## Backups
 
-Everything that matters is in `data/` — the database, the uploads, the avatars.
+Everything that matters is in `data/`: the database, the uploads and the avatars.
 Back up that directory and nothing else.
 
 **Never copy `connectwell.db` with `cp`.** The database runs in WAL mode, so
@@ -124,11 +124,11 @@ plaintext. Store it as carefully as you would the server.
 Ringing and answering travel over the app's own WebSocket, but the audio and
 video go directly between devices. On mobile carriers, CGNAT and strict company
 networks there is no direct path, so the call is accepted and then silent. A
-TURN relay fixes it by forwarding the media — still encrypted end to end; the
+TURN relay fixes it by forwarding the media, still encrypted end to end: the
 relay cannot read it.
 
 The app is already wired for TURN. Once the settings exist, `api/ice` hands out
-short-lived credentials and the browser uses them automatically — no code
+short-lived credentials and the browser uses them on its own, with no code
 change.
 
 ```bash
@@ -145,5 +145,5 @@ and the relay range 49160–49260/udp in ufw and starts coturn.
 
 **If calls still fail from outside**, check for a second firewall. Many hosting
 providers put one in front of the machine, configured in their control panel
-rather than on the box, and it will happily let coturn run while remaining
-unreachable — which looks exactly like the bug you were trying to fix.
+rather than on the box. It lets coturn run while keeping it unreachable, which
+looks exactly like the bug you were trying to fix.

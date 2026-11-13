@@ -1,96 +1,101 @@
 <div align="center">
 
-<img src="public/icon-192.png" alt="" width="96" height="96">
+<img src=".github/readme/icon.png" width="112" alt="ConnectWell icon">
 
 # ConnectWell
 
-**Your own private messenger. On your own server.**
-
-Chat, share files, and make video calls with the people you choose —
-on a server you control, with nobody else in the middle.
+A private messenger you run on your own server, for a family, a team or a group of friends.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-29c8e8.svg)](LICENSE)
-[![Node](https://img.shields.io/badge/node-%E2%89%A522.5-3c873a.svg)](https://nodejs.org)
-[![No build step](https://img.shields.io/badge/build%20step-none-8b94a3.svg)](#why-it-is-built-this-way)
-[![Dependencies](https://img.shields.io/badge/dependencies-2-8b94a3.svg)](package.json)
+
+[Website](https://semo-lab.com/connectwell/) · [Live demo](https://semo-lab.com/connectwell/demo/) · [Contact](https://semo-lab.com/#contact)
 
 </div>
 
----
+## About
 
-## What is it?
+ConnectWell is a messenger with chats, groups, file sharing, voice and video messages, and
+voice and video calls, on a server you control. It is one Node.js program with one SQLite
+database, so it runs on a small VPS or a spare computer at home, with no other services to set
+up. New accounts wait for the admin's approval, and there is no member list to browse: people
+find each other by searching for a name they already know. It works in any modern browser, and
+as an app on Android and Windows.
 
-ConnectWell is a small, private messenger you run yourself. Give the address to
-your family, your team, or a handful of friends — and that is the whole
-membership. There is no company account, no directory to be found in, no
-algorithm, and no adverts.
+## Features
 
-It runs as **one program with one database file**. No Docker required, no build
-step, no cloud services to sign up for. It is happy on a five-euro VPS or an old
-laptop in a cupboard, and it works in any modern browser on Android, iOS,
-Windows, Linux and macOS — including as an installable app.
+### Conversations
 
-Everyone who joins needs your approval first, so the door stays shut by default.
-And there is no member list to browse once inside: people are found by searching
-for a name you already know, so being on the same instance as somebody is not
-enough to learn that they are there.
+- Chats and groups: typing indicators, online status, unread counts and read receipts.
+- Replies, reactions and forwarding: a forwarded message names the person who wrote it.
+- Edit or delete a message freely until someone has read it. After that, deleting it needs their agreement.
+- Drafts: text you haven't sent stays in its conversation on that device, and a conversation opens at the first unread message.
+- Attachment search: find a conversation's photos, videos, voice messages or documents by type and date.
 
-## What can it do?
+### Files, voice and video
 
-💬 **Chat properly** — one-to-one and group conversations, with typing
-indicators, read receipts, replies, reactions, forwarding, and search by
-attachment type or date.
+- File sharing: photos, videos, music and documents, up to 200 MB each by default. Photos open full size, media plays with a seek bar, and files can be dragged into a conversation.
+- Voice and video messages: recorded in the browser, with the front or rear camera.
+- Efficiency mode: photos, voice messages and calls use far less data. In a call it lowers the quality for everyone, and the call says who turned it on.
 
-📎 **Share anything** — photos, video, music and documents up to 200 MB. Images
-open full size, media streams with a seek bar, and you can drag files straight
-into the conversation.
+### Calls
 
-🎙️ **Speak, don't type** — record a voice message or a short video message right
-in the browser, front camera or rear.
+- Voice and video calls, one to one or in a group. A voice call can become a video call at any time.
+- Direct and encrypted: audio and video go straight between devices. An optional TURN relay gets calls through strict networks.
+- Missed calls show in the conversation and in the activity bell.
 
-📞 **Call each other** — one-to-one and group audio and video calls. The audio
-and video travel directly between devices, so the server only introduces you and
-then gets out of the way.
+### Notifications and apps
 
-🌍 **In your language** — full English and Farsi, including right-to-left
-layout, the Jalali calendar and Persian numerals. Messages follow their own
-direction, so Persian and English can sit side by side.
+- Notifications for messages, calls and reactions reach a phone or computer even when ConnectWell is closed, and incoming calls ring.
+- The activity bell collects missed calls and reactions to your messages. Each one opens the message it is about.
+- Apps for Android and Windows, built from this repository for your own server. The Android app rings for calls; the Windows app stays in the tray and starts with Windows.
+- The install button offers each device what suits it: the Windows app on a PC, the Android app on an Android phone, and the web app on iPhone, iPad, Mac and Linux.
 
-🐌 **Built for bad connections** — a one-tap efficiency mode sends photos, voice
-messages and video at a fraction of the data. In a call it is shared: if one
-person needs it, everyone's quality drops with them, and the call says who asked.
+### Members and the server
 
-🔔 **Nothing missed** — notifications reach your phone and computer even when
-the app is closed, and a call rings until you answer it. An activity bell
-collects missed calls and reactions to your messages, and each one takes you
-straight to the message it is about.
+- Approval: every new account waits until an admin lets it in.
+- Admins approve, block and remove members, set a new password for someone who forgot theirs, and can make other members admins.
+- The server panel shows members, activity, storage use and the server's health.
+- File clean-up: old shared files can be removed after a set time, oldest first if the disk fills up. It runs as a dry run until the admin turns deletion on.
 
-📱 **Apps for Android and Windows** — your instance, as an installed app with its
-own icon, that rings for calls and lives in the tray. Built from this repository
-for your own server, with nobody's account to sign up for, and handed to each
-member by the install button: the Windows app on a PC, the Android app on a
-phone, the web app everywhere else.
+### Look and language
 
-🙈 **Second thoughts allowed** — edit or delete a message freely until the other
-person has read it. After that, deleting it needs their agreement.
+- English and Persian, with right-to-left layout, the Iranian calendar and Persian digits. Each message keeps its own text direction, so Persian and English sit side by side.
+- Light and dark themes, or the device's setting, and a choice of conversation backgrounds.
+- Profile photos and group photos.
 
-🌗 **Yours to arrange** — light theme, dark theme, or whatever your system says,
-and a choice of conversation backdrops drawn entirely in CSS.
+## Privacy
 
-🛡️ **You hold the keys** — approve, block or remove members; set a password for
-whoever has forgotten theirs, since there is no email here to reset it with; and
-share the admin role when you would rather not be the only one holding it.
+Everything ConnectWell stores stays on the server that runs it: accounts, messages, files and
+photos, in one data folder that holds a SQLite database and the shared files. Nothing goes to
+SeMo Lab. There are no ads, analytics or trackers, and the web app loads nothing from other
+sites.
 
-## See it running
+ConnectWell is not end-to-end encrypted. Whoever controls the server can read messages and
+files: the person who runs it, the hosting provider, or anyone who breaks in. That is what makes
+history, search and several devices work, and for a family or a small team that trusts the
+person running it, it is a fair trade. If even the server's operator must not be able to read
+your messages, use [Signal](https://signal.org).
 
-There is a live demo at **<https://semo-lab.com/connectwell/demo/>** — sign in as
-`ada` with the password `demo12345` and there are messages, a group, replies,
-reactions and call history waiting.
+Two things involve other services:
 
-It is wiped and re-seeded every night, so treat it as a shop window rather than
-somewhere to keep anything.
+- Calls go directly between devices, encrypted. To find a route, each device asks a STUN server
+  (Google's by default) for its public address, so that server sees the device's IP address.
+- Notifications travel through the push service of the browser's maker (Google, Microsoft,
+  Mozilla or Apple), encrypted to the device. The service sees that a notification was sent, not
+  what it says.
 
-## Try it in two minutes
+[SECURITY.md](SECURITY.md) explains what is protected and how.
+
+## Download
+
+ConnectWell isn't on Google Play or the Microsoft Store. Each server runs its own copy, and its
+members sign in there.
+
+**Try the demo.** The [live demo](https://semo-lab.com/connectwell/demo/) has people, groups
+and messages ready: sign in as `ada` with the password `demo12345`. It is wiped and filled
+again every night, so don't keep anything there.
+
+**Run your own server.** You need Node.js 22.5 or newer.
 
 ```bash
 git clone https://github.com/SepehrMohammady/ConnectWell.git
@@ -99,73 +104,53 @@ npm install
 npm start
 ```
 
-Open **http://127.0.0.1:3010/connectwell/** and register. The first account
-created becomes the administrator — so make it yours before you share the
-address with anyone.
+Open http://127.0.0.1:3010/connectwell/ and create an account. The first account becomes the
+admin, so create yours before you share the address. Everything ConnectWell stores goes into
+a `data/` folder next to the code. To put it online with a domain, HTTPS, backups and calls
+that connect on any network, follow the [deployment guide](docs/DEPLOYMENT.md).
 
-That is genuinely all: no database to set up, no configuration file to write.
-Everything it stores lands in a `data/` folder next to the code.
+**Get the apps.** The Android and Windows apps are built for one server, with its address
+inside. [docs/APPS.md](docs/APPS.md) shows how to build them and offer them from the web app,
+where members download them with the install button. On iPhone, iPad, Mac and Linux, the web
+app installs from the browser.
 
-> Ready to put it online for real? The [deployment guide](docs/DEPLOYMENT.md)
-> covers a domain, HTTPS, keeping it running, backups, and reliable calls on
-> difficult networks.
+## Built with
 
-## Before you trust it with something
+Node.js with Express, `ws` for WebSockets and Node's built-in SQLite driver. The web app is
+plain JavaScript modules, loaded by the browser as they are, with no build step. Calls use
+WebRTC, and notifications use Web Push. The Android app is a Trusted Web Activity built with
+Google's Android Browser Helper, and the Windows app uses Electron and electron-builder.
 
-**ConnectWell is not end-to-end encrypted.** Messages and files are stored on
-your server, so that history, search and multiple devices all work. That means
-whoever controls the server can read them — you, your hosting provider, or
-anyone who breaks in.
+## Development
 
-For a family or a small team where you are the one running it, that is usually a
-fair trade and an honest one. If you need a messenger where even the operator
-cannot read the messages, use [Signal](https://signal.org) instead — that is
-what it is for.
+1. Install Node.js 22.5 or newer (`engines` in package.json).
+2. `npm install`
+3. `npm start` runs the server at http://127.0.0.1:3010/connectwell/.
+4. `npm test` checks the translations and the notification encryption, and loads every module
+   in both languages. Run it before every commit.
+5. Each server signs its Android app with its own key, kept in an instance folder outside this
+   repository ([docs/APPS.md](docs/APPS.md)).
 
-Calls are different: audio and video are encrypted between devices and the
-server never sees them.
+More detail:
 
-[SECURITY.md](SECURITY.md) has the full picture, including what *is* protected
-and how to report a problem.
+- [Deployment](docs/DEPLOYMENT.md): a domain, HTTPS, keeping it running, backups, and TURN for calls.
+- [Configuration](docs/CONFIGURATION.md): every setting, and the rules for removing old files.
+- [Apps](docs/APPS.md): the Android and Windows apps, notifications, and building them for your server.
+- [Architecture](docs/ARCHITECTURE.md): how the parts fit together, and the HTTP and WebSocket API.
 
-## Why it is built this way
+## Contributing, conduct and security
 
-Most self-hosted chat apps ask you to run several services, a separate database,
-and a build pipeline before you can say hello to anyone. ConnectWell is a
-deliberate reaction to that.
-
-- **One process, one file.** Express and `ws` are the only two dependencies.
-  Storage is SQLite through Node's own built-in driver — nothing to compile.
-- **No build step.** The browser loads the JavaScript that is in the repository.
-  What you read is what runs, which also means you can fix something without
-  learning a toolchain first.
-- **Nothing phones home.** No CDNs, no fonts from elsewhere, no analytics. A
-  strict Content-Security-Policy forbids it even by accident.
-- **Small enough to read.** If you are going to trust a server with your
-  conversations, you should be able to read the thing running on it.
-
-## Documentation
-
-| | |
-| --- | --- |
-| [Deployment guide](docs/DEPLOYMENT.md) | Put it on a server: domain, HTTPS, staying alive, backups, TURN for calls |
-| [Configuration](docs/CONFIGURATION.md) | Every setting, and the file-retention rules |
-| [Apps](docs/APPS.md) | The Android and Windows apps, notifications, and building them for your server |
-| [Architecture](docs/ARCHITECTURE.md) | How it fits together, the HTTP and WebSocket API |
-| [SECURITY.md](SECURITY.md) | What is protected, what is not, reporting a vulnerability |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | The constraints to respect before sending a patch |
-
-## Contributing
-
-Bug reports and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md)
-explains the handful of rules that are not stylistic — no build step, no new
-dependencies without a good reason, and every user-facing string in both
-languages.
+Bug reports, ideas and pull requests are welcome: [CONTRIBUTING.md](CONTRIBUTING.md) says how,
+and lists the few rules a change must keep. Everyone taking part follows the
+[code of conduct](CODE_OF_CONDUCT.md). Please report security problems privately, as
+[SECURITY.md](SECURITY.md) explains.
 
 ## License
 
-[MIT](LICENSE) © Sepehr Mohammady. Do what you like with the code.
+Copyright (c) 2026 Sepehr Mohammady. ConnectWell is free and open source under the
+[MIT License](LICENSE).
 
-The ConnectWell name and the logo files are not part of that grant — please use
-your own name and artwork for a public deployment, so people can tell instances
-apart.
+The ConnectWell name and logo are not part of that license. If you run a public server, please
+give it your own name and artwork, so people can tell servers apart.
+
+ConnectWell is one of the apps from [SeMo Lab](https://semo-lab.com/).

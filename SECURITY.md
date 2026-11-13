@@ -1,79 +1,95 @@
-# Security
+# Security policy
 
-## What this software does and does not protect
+## Report a problem privately
 
-**ConnectWell is not end-to-end encrypted.** Messages, captions, file names and
-uploaded files are stored unencrypted on the server that runs it. Anyone with
-access to that machine — you, your hosting provider, anyone who compromises it,
-or anyone holding a backup — can read everything. This is a deliberate trade for
-history, search, multi-device access and small, auditable code.
+Please don't open a public issue for a security problem. Instead:
 
-Calls are different: audio and video are peer-to-peer WebRTC and are encrypted
-in transit (DTLS-SRTP, mandatory in WebRTC). The server relays only signaling.
-If you run a TURN relay, media passes through it still encrypted end to end —
-the relay forwards packets it cannot read.
+- write to info@semo-lab.com with "Security: ConnectWell" in the subject, or
+- use **Report a vulnerability** under this repository's Security tab.
 
-If you need a messenger where the operator cannot read message content, use
-something built for that, such as Signal. If you are the operator and your users
-trust you, this is a reasonable design.
+Say what is affected, how to reproduce it, and what someone could do with it. A proof of
+concept helps. You'll get a reply, and the fix arrives in a new version in this repository.
+ConnectWell is maintained in spare time, so please allow reasonable time for a fix before you
+disclose a problem in public. Say so if you'd like to be credited.
 
-## What it does protect
+## Versions that get fixes
 
-- **Transport** — intended to run behind a reverse proxy terminating TLS.
-  Serve it over HTTPS; without it, session cookies and everything else travel in
-  the clear.
-- **Passwords** — stored as scrypt hashes with a per-user salt, never plaintext
-  and never recoverable.
-- **Sessions** — random tokens, stored hashed, in `HttpOnly` `SameSite` cookies;
-  `Secure` when `PROD=1`. Signing out revokes the token and closes its sockets.
-- **Registration** — open to anyone who reaches the URL, but new accounts are
-  inert until an admin approves them. The first account created becomes admin.
-- **XSS** — a strict Content-Security-Policy with no inline script or style and
-  no external origins. The client builds DOM nodes and sets `textContent`; it
-  never assigns `innerHTML` from user data.
-- **CSRF** — state-changing requests require an `X-Requested-With` header, which
-  cross-origin form posts cannot set.
-- **Uploads** — size-capped per file and per user; images are validated by magic
-  bytes and dimensions server-side, not by their claimed type; files are served
-  with `Content-Disposition: attachment` and a nosniff header, so an uploaded
-  file cannot execute as a page on your origin.
-- **Access control** — every message, file and conversation route re-checks
-  membership on the server. A non-member gets a 404 rather than a 403, so
-  probing cannot confirm that something exists.
-- **TURN** — credentials are short-lived HMACs derived from a shared secret; the
-  relay refuses to forward toward loopback, link-local and private ranges, so it
-  cannot be turned into a probe of your internal network.
-- **Rate limiting** — on registration, login, reactions and deletion requests.
-- **Background notifications** — payloads are encrypted to the receiving device
-  (RFC 8291), so the push service that carries them (Google, Microsoft, Mozilla
-  or Apple, depending on the browser) learns that a notification was sent, when,
-  and roughly how large — not what it says. A device's registration is tied to
-  the session that made it and is deleted with it: signing out, a revoked
-  session, a block or a password reset stop that device's notifications. The
-  server only ever delivers to the push services listed in `PUSH_HOSTS`, so a
-  user cannot point it at an internal address.
+The latest version in this repository. A server gets a fix when the person running it updates
+to that version.
 
-Note that a notification shows message text on the device it reaches, including
-on a locked screen, as the phone's own settings allow.
+## What this covers
 
-## Running it safely
+- The ConnectWell server and web app in this repository.
+- The Android and Windows apps built from `apps/`.
 
-- Put it behind HTTPS and set `PUBLIC_ORIGIN` to the real origin.
+A ConnectWell server is run by whoever installed it, and how it is set up is theirs to look
+after. Services run by others, such as browsers, the push services that carry notifications,
+STUN and TURN servers and the hosting a server runs on, are not SeMo Lab's to fix. Please
+report problems in them to their owners.
+
+## How ConnectWell keeps your data safe
+
+### What it does not protect
+
+**ConnectWell is not end-to-end encrypted.** Messages, captions, file names and shared files
+are stored unencrypted on the server that runs it. Anyone with access to that machine can read
+all of it: the person who runs it, the hosting provider, anyone who breaks in, and anyone who
+holds a backup. This is a deliberate trade, for history, search, several devices per person and
+code small enough to check.
+
+Calls are different. Audio and video travel peer to peer over WebRTC and are encrypted on the
+way (DTLS-SRTP, which WebRTC requires). The server only passes the signaling along. With a TURN
+relay, media passes through it still encrypted from end to end: the relay forwards packets it
+cannot read.
+
+If you need a messenger whose operator cannot read the messages, use one built for that, such
+as Signal. If you run the server and the people using it trust you, this design is a reasonable
+one.
+
+### What it protects
+
+- **Transport.** ConnectWell is meant to run behind a reverse proxy that handles TLS. Serve it
+  over HTTPS: without it, session cookies and everything else travel in the clear.
+- **Passwords** are stored as scrypt hashes with a salt per user, never in plain text and never
+  recoverable.
+- **Sessions** use random tokens, stored hashed, in `HttpOnly` `SameSite` cookies, which are also
+  `Secure` when `PROD=1`. Signing out revokes the token and closes its connections.
+- **Registration** is open to anyone who reaches the address, but a new account can do nothing
+  until an admin approves it. The first account created becomes the admin.
+- **Cross-site scripting.** A strict Content Security Policy allows no inline script or style
+  and no other origins. The client builds DOM nodes and sets `textContent`; it never assigns
+  `innerHTML` from user data.
+- **Cross-site requests.** Every request that changes something needs an `X-Requested-With`
+  header, which a form posted from another site cannot set.
+- **Uploads** have a size limit per file and per person. The server checks images by their
+  magic bytes and dimensions, not by the type they claim, and serves files with
+  `Content-Disposition: attachment` and a nosniff header, so an uploaded file can't run as a
+  page on your server's address.
+- **Access control.** Every message, file and conversation route checks membership again on the
+  server. Someone who isn't a member gets a 404 rather than a 403, so probing can't confirm that
+  something exists.
+- **TURN** credentials are short-lived HMACs made from a shared secret. The relay refuses to
+  forward to loopback, link-local and private addresses, so it can't be used to probe your
+  internal network.
+- **Rate limits** apply to registration, sign-in, reactions and deletion requests.
+- **Background notifications** are encrypted to the device that receives them (RFC 8291). The
+  push service that carries them (Google's, Microsoft's, Mozilla's or Apple's, depending on the
+  browser) learns that a notification was sent, when, and roughly how large, but not what it
+  says. A device's registration belongs to the session that made it and is deleted with it:
+  signing out, a revoked session, a block or a password reset all stop that device's
+  notifications. The server only delivers to the push services listed in `PUSH_HOSTS`, so nobody
+  can point it at an internal address.
+
+A notification shows message text on the device it reaches, on a locked screen too, as far as
+that device's settings allow.
+
+### Running it safely
+
+- Put it behind HTTPS and set `PUBLIC_ORIGIN` to the real address.
 - Set `PROD=1` so cookies are marked `Secure`.
-- Register the admin account yourself, immediately, before sharing the address.
-- Keep `HOST` on `127.0.0.1` and let the proxy be the only public listener.
-- Back up `data/` with `VACUUM INTO`, not `cp` — and remember the backup contains
-  every message and file in plaintext. Store it accordingly.
-- Keep Node updated; the app has only two dependencies (`express`, `ws`), so
-  most of your patching surface is Node itself.
-
-## Reporting a vulnerability
-
-Please report security issues privately rather than opening a public issue:
-use GitHub's **Report a vulnerability** button on the Security tab of the
-repository, or contact the maintainer at <https://sepehrmohammady.com>.
-
-Include what you did, what happened, and what you expected. A proof of concept
-helps. You will get an acknowledgement as soon as the report is read; this is a
-small project maintained in spare time, so please allow reasonable time for a
-fix before disclosing publicly.
+- Register the admin account yourself, straight away, before you share the address.
+- Keep `HOST` on `127.0.0.1` and let the reverse proxy be the only public listener.
+- Back up `data/` with `VACUUM INTO`, not `cp`, and remember that the backup holds every message
+  and file in plain text. Store it with that in mind.
+- Keep Node.js up to date. With only two dependencies (`express` and `ws`), Node itself is most
+  of what needs patching.

@@ -5,13 +5,13 @@ no build step, no framework on the client, and two runtime dependencies.
 
 ## The pieces
 
-- **Server** — Express 5 for HTTP, `ws` for the realtime socket, and Node's
+- **Server:** Express 5 for HTTP, `ws` for the realtime socket, and Node's
   built-in `node:sqlite` for storage. No native modules, so `npm install` never
   compiles anything.
-- **Client** — vanilla ES modules loaded directly by the browser. System fonts,
+- **Client:** vanilla ES modules loaded directly by the browser. System fonts,
   no CDNs, and a strict Content-Security-Policy with no inline script or style.
-- **Storage** — SQLite in WAL mode, plus uploaded files on disk under `data/`.
-- **Sessions** — scrypt password hashes, random tokens stored hashed, in
+- **Storage:** SQLite in WAL mode, plus uploaded files on disk under `data/`.
+- **Sessions:** scrypt password hashes, random tokens stored hashed, in
   `HttpOnly` cookies.
 
 ```
@@ -28,7 +28,7 @@ lib/push.js        background notifications: who is told what, in which language
 lib/webpush.js     the Web Push protocol (VAPID, aes128gcm) on node:crypto
 lib/apps.js        the app builds in APPS_DIR offered to members
 lib/util.js        hashing, validation, small helpers
-public/            the web app — index.html, app.css, js/*
+public/            the web app: index.html, app.css, js/*
 public/sw.js       service worker: installability, and showing pushed notifications
 public/js/i18n/    en.js and fa.js dictionaries
 apps/              the Android (Trusted Web Activity) and Windows (Electron) apps
@@ -70,8 +70,8 @@ app's identity is configured (`ANDROID_APP_ID`, `ANDROID_CERT_SHA256`), and
 the manifest then names the app under `related_applications`.
 
 State-changing requests must carry `X-Requested-With: ConnectWell`, a header a
-cross-origin form post cannot set — CSRF defence in depth on top of `SameSite`
-cookies.
+cross-origin form post cannot set. That is CSRF defence in depth on top of
+`SameSite` cookies.
 
 `bootstrap` is one round trip that returns everything a fresh page load needs:
 the user, the roster, conversations, who is online, live calls, pending deletion
@@ -87,7 +87,7 @@ Connect at `ws`. The server pushes:
 `call:state`, `call:ring`, `call:declined`, `call:ended`, `rtc`.
 
 Clients send `typing`, `call:start`, `call:join`, `call:leave`, `call:decline`,
-`call:eco`, `call:media`, `rtc`, and `active` — whether a person is looking at
+`call:eco`, `call:media`, `rtc`, and `active`: whether a person is looking at
 this window right now, with the device id that links the socket to that device's
 push registration.
 
@@ -103,21 +103,21 @@ so nobody has to hang up.
 **An instance is not a directory.** A client is only ever handed the people it
 already shares a conversation with, and presence and profile changes are sent to
 that same audience rather than broadcast to everyone. Reaching a stranger means
-searching `users/search` for at least three letters of their name — enough to
+searching `users/search` for at least three letters of their name: enough to
 find somebody you know of, not enough to enumerate the membership. The search
 escapes `%` and `_` before they reach LIKE, or the minimum length would buy
 nothing. The admin panel keeps its own unscoped list, because approving and
 blocking require it.
 
 Because the roster follows from conversations, a client that meets somebody new
-— found by search, or added to a group by another member — refetches
+(found by search, or added to a group by another member) refetches
 `api/users` when an unfamiliar member id appears, rather than being told about
 people it has no business knowing.
 
 **An admin can set a member's password but never another admin's.** There is no
 email on the server and so no self-service reset, which makes an admin the only
 way back in for somebody who has forgotten theirs. Rewriting a peer admin's
-credential would be a silent account takeover, so that is refused — demote them
+credential would be a silent account takeover, so that is refused. Demote them
 first, which is deliberate and visible. A reset revokes every session the
 account had, since the usual reason for one is that the old password is
 compromised or unknown.
@@ -134,7 +134,7 @@ member had already read.
 
 **Editing and free deletion close the moment a message is read.** After that,
 removing it needs the reader's consent, tracked in `del_requests` / `del_votes`
-with the approver set frozen at request time — read positions keep moving, and a
+with the approver set frozen at request time: read positions keep moving, and a
 set that grew as more people read could never be completed.
 
 **Messages soft-delete.** The row stays so replies to it survive and so a
@@ -143,7 +143,7 @@ never fire for them, and anything keyed to a message must be cleaned up
 explicitly.
 
 **Schema changes go through a guarded `addColumn()`** in `lib/db.js`, placed
-after the `CREATE TABLE` block and before any `db.prepare()` — prepared
+after the `CREATE TABLE` block and before any `db.prepare()`, because prepared
 statements resolve column names eagerly. Assume every deployment has a live
 database with real conversations in it.
 
@@ -169,8 +169,8 @@ being active, rings their devices then, for the time left.
 day that show nothing before replacing them with a generic notice of their own.
 So the end of a ring is not a silent dismissal: each device that rang is told
 how it ended (missed, answered elsewhere, declined), which both stops the ringing
-and stays as a truthful note — and the device that answered or declined is the
-one device not told. The service worker shows nothing only when a window of the
+and stays as a truthful note. The device that answered or declined is the one
+device not told. The service worker shows nothing only when a window of the
 app is in front on that same device.
 
 **Notification tags are a contract.** `cw-conv-<id>` (messages, merged),
@@ -182,7 +182,7 @@ withdrawn. Change them in all three places together.
 **A push registration lives and dies with its session.** `push_subs` cascades
 from `sessions`, so signing out, a password change that revokes other sessions,
 an admin block or reset, and plain expiry all take the device's notifications
-with them — a notification carries message text, and must not outlive the access
+with them: a notification carries message text, and must not outlive the access
 it came from. The endpoint a browser hands over is checked against `PUSH_HOSTS`
 before the server will ever request it.
 
@@ -193,7 +193,7 @@ npm test
 ```
 
 Checks that every referenced translation key resolves, that no key is unused,
-that the Farsi dictionary matches English key-for-key and slot-for-slot, that no
+that the Persian dictionary matches English key-for-key and slot-for-slot, that no
 `t()` is called at module scope, that Web Push encryption reproduces RFC 8291's
 worked example byte for byte and its VAPID tokens verify, and that every
 frontend module executes under a DOM shim in both languages.
