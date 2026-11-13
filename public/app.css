@@ -867,7 +867,6 @@ body { height: 100dvh; display: flex; flex-direction: column; }
 .unread-sep::before, .unread-sep::after {
     content: ''; flex: 1; height: 1px; background: var(--danger); opacity: .5;
 }
-.eco-note { font-size: .8rem; color: var(--muted); text-align: center; padding: .2rem; }
 
 .call-eco {
     position: absolute; top: calc(env(safe-area-inset-top, 0px) + 3.1rem);

@@ -1356,8 +1356,6 @@ const FILTER_CATS = [
 let filterOpen = false;
 const fstate = { types: new Set(), from: '', to: '', loading: false };
 
-export function isFilterOpen() { return filterOpen; }
-
 export function closeFilter() {
     if (!filterOpen) return;
     filterOpen = false;
