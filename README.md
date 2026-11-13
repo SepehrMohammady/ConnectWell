@@ -35,7 +35,7 @@ as an app on Android and Windows.
 
 - File sharing: photos, videos, music and documents, up to 200 MB each by default. Photos open full size, media plays with a seek bar, and files can be dragged into a conversation.
 - Voice and video messages: recorded in the browser, with the front or rear camera.
-- Efficiency mode: photos, voice messages and calls use far less data. In a call it lowers the quality for everyone, and the call says who turned it on.
+- Efficiency mode: photos, voice and video messages, and calls use far less data. In a call it lowers the quality for everyone, and the call says who turned it on.
 
 ### Calls
 
