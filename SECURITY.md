@@ -5,7 +5,7 @@
 Please don't open a public issue for a security problem. Instead:
 
 - write to info@semo-lab.com with "Security: ConnectWell" in the subject, or
-- use **Report a vulnerability** under this repository's Security tab.
+- use **Report a vulnerability** under this repository's Security tab, where GitHub offers it.
 
 Say what is affected, how to reproduce it, and what someone could do with it. A proof of
 concept helps. You'll get a reply, and the fix arrives in a new version in this repository.
