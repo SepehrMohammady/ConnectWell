@@ -402,8 +402,14 @@ body { height: 100dvh; display: flex; flex-direction: column; }
 }
 .bubble video.msg-video { display: block; border-radius: 10px; max-height: 340px; margin: .15rem 0; }
 .bubble audio { display: block; width: 240px; max-width: 100%; margin: .2rem 0; }
-.voice-row { display: flex; align-items: center; gap: .5rem; }
+.voice-row { display: flex; flex-wrap: wrap; align-items: center; column-gap: .5rem; }
 .voice-row svg { width: 18px; height: 18px; fill: var(--accent); flex: none; }
+/* In a narrow bubble the player gives up room first, down to about the width that
+   still shows its play button; past that the length moves to a line of its own.
+   It never breaks inside "0:10", which the bubble's overflow-wrap: anywhere would
+   otherwise allow, one character per line. */
+.voice-row audio { flex: 1 1 7.5rem; min-width: 0; }
+.voice-row .muted { flex: none; white-space: nowrap; }
 
 .file-chip {
     display: flex; align-items: center; gap: .6rem;
