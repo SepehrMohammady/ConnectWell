@@ -193,7 +193,7 @@ npm test
 ```
 
 Checks that every referenced translation key resolves, that no key is unused,
-that the Persian dictionary matches English key-for-key and slot-for-slot, that no
+that the Farsi dictionary matches English key-for-key and slot-for-slot, that no
 `t()` is called at module scope, that Web Push encryption reproduces RFC 8291's
 worked example byte for byte and its VAPID tokens verify, and that every
 frontend module executes under a DOM shim in both languages.

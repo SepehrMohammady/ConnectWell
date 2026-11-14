@@ -17,7 +17,7 @@
     // The lang attribute carries a plain language tag.
     var LANG_TAG = { en: 'en', fa: 'fa-IR' };
     // Intl gets the calendar stated explicitly. fa-IR already defaults to the
-    // Persian calendar in current engines, and its default numbering system
+    // Iranian calendar in current engines, and its default numbering system
     // gives Persian digits (۱۲۳); naming the calendar removes any doubt.
     var INTL_TAG = { en: 'en', fa: 'fa-IR-u-ca-persian' };
 

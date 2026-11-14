@@ -68,7 +68,7 @@ export function svgIcon(d, cls) {
    renderConvList() every row, and constructing an Intl formatter per iteration is
    the one genuinely costly mistake available here.
 
-   For Farsi this produces the Persian calendar and Persian digits (۱۲۳) with no
+   For Farsi this produces the Iranian calendar and Persian digits (۱۲۳) with no
    special-casing: both follow from the locale tag. */
 const fmt = {
     time: new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' }),
@@ -87,7 +87,7 @@ export function fmtTime(ts) {
     return fmt.time.format(ts);
 }
 
-// Correct for Jalali as-is: a Persian day begins at the same local midnight as a
+// Correct for the Iranian calendar as-is: its day begins at the same local midnight as a
 // Gregorian one, so comparing local year/month/date still identifies "same day".
 export function sameDay(a, b) {
     const x = new Date(a), y = new Date(b);
@@ -100,7 +100,7 @@ export function fmtDay(ts) {
     const yest = new Date(now); yest.setDate(now.getDate() - 1);   // DST-safe
     if (sameDay(ts, yest.getTime())) return t('core.day.yesterday');
     // Compare FORMATTED years, not getFullYear(): the Gregorian year rolls over
-    // in the middle of the Persian one, so the raw test would append the year for
+    // in the middle of the Iranian one, so the raw test would append the year for
     // the wrong eleven weeks annually — and omit it when it is actually needed.
     return fmt.year.format(ts) === fmt.year.format(now)
         ? fmt.dayMonth.format(ts)

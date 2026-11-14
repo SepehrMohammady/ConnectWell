@@ -26,7 +26,7 @@ promise of when, or whether, it arrives in ConnectWell.
 
 ## Help with a translation
 
-ConnectWell is in English and Persian. If a word or sentence reads wrong, send the screen it's
+ConnectWell is in English and Farsi. If a word or sentence reads wrong, send the screen it's
 on, the current text and what it should say, or change it in `public/js/i18n/` in a pull
 request.
 

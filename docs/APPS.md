@@ -31,7 +31,7 @@ already shows what happened; a phone buzzing in your pocket for the chat you are
 typing into is noise.
 
 Notification text is written by your server in each device's own language
-(English or Persian), and travels **end-to-end encrypted** to the device
+(English or Farsi), and travels **end-to-end encrypted** to the device
 ([RFC 8291](https://www.rfc-editor.org/rfc/rfc8291)). The push services that
 carry it (Google's for Chrome and Android, Microsoft's for Edge, Mozilla's for
 Firefox, Apple's for Safari) see only that *something* was sent, when, and how

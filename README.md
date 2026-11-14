@@ -16,7 +16,7 @@ A private messenger you run on your own server, for a family, a team or a group 
   <img src=".github/readme/screen-1.png" width="23%" alt="The conversation list, with unread messages and the activity bell">
   <img src=".github/readme/screen-2.png" width="23%" alt="A group chat opening at its unread messages, with a shared photo">
   <img src=".github/readme/screen-3.png" width="23%" alt="Profile settings: theme, conversation background, language and efficiency mode">
-  <img src=".github/readme/screen-4.png" width="23%" alt="A family group in Persian, right to left">
+  <img src=".github/readme/screen-4.png" width="23%" alt="A family group in Farsi, right to left">
 </p>
 
 ## About
@@ -66,7 +66,7 @@ as an app on Android and Windows.
 
 ### Look and language
 
-- English and Persian, with right-to-left layout, the Iranian calendar and Persian digits. Each message keeps its own text direction, so Persian and English sit side by side.
+- English and Farsi, with right-to-left layout, the Iranian calendar and Persian digits. Each message keeps its own text direction, so Farsi and English sit side by side.
 - Light and dark themes, or the device's setting, and a choice of conversation backgrounds.
 - Profile photos and group photos.
 

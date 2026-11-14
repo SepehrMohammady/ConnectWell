@@ -10,7 +10,7 @@
 // deliberately a different verb from the user-initiated حذف · پوسته = theme.
 //
 // Numbers, dates and file sizes are NOT translated here — they come from Intl
-// with the fa-IR locale, which yields Persian digits and the Jalali calendar.
+// with the fa-IR locale, which yields Persian digits and the Iranian calendar.
 
 export default {
 
