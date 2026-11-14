@@ -14,7 +14,7 @@ A private messenger you run on your own server, for a family, a team or a group 
 
 <p align="center">
   <img src=".github/readme/screen-1.png" width="23%" alt="The conversation list, with unread messages and the activity bell">
-  <img src=".github/readme/screen-2.png" width="23%" alt="A group chat opening at its unread messages, with a shared photo">
+  <img src=".github/readme/screen-2.png" width="23%" alt="A group chat with a route map, reactions, a reply and a voice message">
   <img src=".github/readme/screen-3.png" width="23%" alt="Profile settings: theme, conversation background, language and efficiency mode">
   <img src=".github/readme/screen-4.png" width="23%" alt="A family group in Farsi, right to left">
 </p>
