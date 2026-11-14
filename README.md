@@ -8,7 +8,7 @@ A private messenger you run on your own server, for a family, a team or a group 
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-29c8e8.svg)](LICENSE)
 
-[Website](https://semo-lab.com/connectwell/) · [Live demo](https://semo-lab.com/connectwell/demo/) · [Contact](https://semo-lab.com/#contact)
+[Website](https://semo-lab.com/connectwell/) · [Live demo](https://semo-lab.com/connectwell/demo/) · [Privacy policy](https://semo-lab.com/connectwell/privacy-policy/) · [Contact](https://semo-lab.com/#contact)
 
 </div>
 
@@ -84,7 +84,8 @@ Two things involve other services:
   Mozilla or Apple), encrypted to the device. The service sees that a notification was sent, not
   what it says.
 
-[SECURITY.md](SECURITY.md) explains what is protected and how.
+[SECURITY.md](SECURITY.md) explains what is protected and how. The full text is in the
+[privacy policy](https://semo-lab.com/connectwell/privacy-policy/).
 
 ## Download
 

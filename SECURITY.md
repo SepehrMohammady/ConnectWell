@@ -29,6 +29,9 @@ report problems in them to their owners.
 
 ## How ConnectWell keeps your data safe
 
+The [privacy policy](https://semo-lab.com/connectwell/privacy-policy/) covers who holds the data
+and what leaves a server. This section covers how the software protects it.
+
 ### What it does not protect
 
 **ConnectWell is not end-to-end encrypted.** Messages, captions, file names and shared files
