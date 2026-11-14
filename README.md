@@ -12,6 +12,13 @@ A private messenger you run on your own server, for a family, a team or a group 
 
 </div>
 
+<p align="center">
+  <img src=".github/readme/screen-1.png" width="23%" alt="The conversation list, with unread messages and the activity bell">
+  <img src=".github/readme/screen-2.png" width="23%" alt="A group chat opening at its unread messages, with a shared photo">
+  <img src=".github/readme/screen-3.png" width="23%" alt="Profile settings: theme, conversation background, language and efficiency mode">
+  <img src=".github/readme/screen-4.png" width="23%" alt="A family group in Persian, right to left">
+</p>
+
 ## About
 
 ConnectWell is a messenger with chats, groups, file sharing, voice and video messages, and
